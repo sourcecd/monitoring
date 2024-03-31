@@ -26,7 +26,7 @@ func (m *MemStorage) WriteCounter(name string, value counter) error {
 }
 
 type urlToMetric struct {
-	action      string
+	//action      string
 	metricType  string
 	metricName  string
 	metricValue string
@@ -48,15 +48,15 @@ func updateMetrics(storage StoreMetrics) http.HandlerFunc {
 			return
 		}
 
-		actionUrl := req.URL.Path
-		urlSplit := strings.Split(strings.Trim(actionUrl, "/"), "/")
+		actionURL := req.URL.Path
+		urlSplit := strings.Split(strings.Trim(actionURL, "/"), "/")
 		if len(urlSplit) != 4 {
 			http.Error(resp, "url does not match patter: /update/[metric_type]/[metric_name]/value", http.StatusNotFound)
 			return
 		}
 
 		metric := urlToMetric{
-			action:      urlSplit[0],
+			//action:      urlSplit[0],
 			metricType:  urlSplit[1],
 			metricName:  urlSplit[2],
 			metricValue: urlSplit[3],
