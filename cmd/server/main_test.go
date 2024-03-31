@@ -57,6 +57,7 @@ func TestUpdateHandler(t *testing.T) {
 			respParsed := resp.Result()
 
 			body, _ := io.ReadAll(respParsed.Body)
+			defer respParsed.Body.Close()
 
 			assert.Equal(t, v.want.statusCode, respParsed.StatusCode)
 			assert.Equal(t, v.want.response, string(body))
