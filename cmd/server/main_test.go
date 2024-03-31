@@ -12,10 +12,10 @@ import (
 func TestUpdateHandler(t *testing.T) {
 	type want struct {
 		statusCode int
-		response string
-		request string
-		metric string
-		mType string
+		response   string
+		request    string
+		metric     string
+		mType      string
 	}
 	testStorage := &MemStorage{
 		gauge:   make(map[string]gauge),
@@ -23,7 +23,7 @@ func TestUpdateHandler(t *testing.T) {
 	}
 	hndl := updateMetrics(testStorage)
 
-	testCase := []struct{
+	testCase := []struct {
 		name string
 		want want
 	}{
@@ -31,20 +31,20 @@ func TestUpdateHandler(t *testing.T) {
 			name: "test1",
 			want: want{
 				statusCode: 200,
-				response: "OK",
-				request: "/update/counter/testCounter/100",
-				metric: "testCounter",
-				mType: "counter",
+				response:   "OK",
+				request:    "/update/counter/testCounter/100",
+				metric:     "testCounter",
+				mType:      "counter",
 			},
 		},
 		{
 			name: "test2",
 			want: want{
 				statusCode: 200,
-				response: "OK",
-				request: "/update/gauge/testGauge/0.1",
-				metric: "testGauge",
-				mType: "gauge",
+				response:   "OK",
+				request:    "/update/gauge/testGauge/0.1",
+				metric:     "testGauge",
+				mType:      "gauge",
 			},
 		},
 	}
