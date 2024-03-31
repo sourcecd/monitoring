@@ -90,7 +90,7 @@ func updateMetrics(storage StoreMetrics) http.HandlerFunc {
 
 		resp.Header().Set("Content-Type:", "text/plain")
 		resp.WriteHeader(http.StatusOK)
-		_, _ = resp.Write([]byte(fmt.Sprintf("%v\n", storage)))
+		_, _ = resp.Write([]byte("OK"))
 	}
 }
 
