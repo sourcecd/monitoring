@@ -43,10 +43,10 @@ func updateMetrics(storage StoreMetrics) http.HandlerFunc {
 			http.Error(resp, fmt.Sprintf("http method %s not acceptable for update metrics", req.Method), http.StatusBadRequest)
 			return
 		}
-		/*if req.Header.Get("Content-Type") != "text/plain" {
+		if req.Header.Get("Content-Type") != "" && req.Header.Get("Content-Type") != "text/plain" {
 			http.Error(resp, fmt.Sprintf("wrong content type: %s", req.Header.Get("Content-Type")), http.StatusBadRequest)
 			return
-		}*/
+		}
 
 		actionUrl := req.URL.Path
 		urlSplit := strings.Split(strings.Trim(actionUrl, "/"), "/")
