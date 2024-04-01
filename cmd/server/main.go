@@ -8,8 +8,10 @@ import (
 	"strings"
 )
 
-type gauge float64
-type counter int64
+type (
+	gauge float64
+	counter int64
+)
 
 type MemStorage struct {
 	gauge   map[string]gauge
@@ -94,6 +96,12 @@ func updateMetrics(storage StoreMetrics) http.HandlerFunc {
 	}
 }
 
+func getAll(m *MemStorage) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(fmt.Sprint(*m)))
+	}
+}
+
 func main() {
 
 	m := &MemStorage{
@@ -102,6 +110,7 @@ func main() {
 	}
 
 	http.HandleFunc("/update/", updateMetrics(m))
+	http.HandleFunc("/get", getAll(m))
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
