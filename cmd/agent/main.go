@@ -104,7 +104,7 @@ func main() {
 				continue
 			}
 		}
-
+		sysMetrics.PollCount = 0
 		time.Sleep(time.Duration(reportInterval) * time.Second)
 	}
 }
