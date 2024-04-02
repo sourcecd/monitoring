@@ -80,9 +80,11 @@ func main() {
 			resp, err := http.Post(fmt.Sprintf("%s/update/gauge/%s/%v", serverHost, strings.ToLower(m[i]), v), "text/plain", nil)
 			if err != nil {
 				log.Println(err)
+				continue
 			}
 			if resp.StatusCode != http.StatusOK {
 				log.Printf("status_code: %d", resp.StatusCode)
+				continue
 			}
 		}
 
@@ -95,9 +97,11 @@ func main() {
 			resp, err := http.Post(s, "text/plain", nil)
 			if err != nil {
 				log.Println(err)
+				continue
 			}
 			if resp.StatusCode != http.StatusOK {
 				log.Printf("status_code: %d", resp.StatusCode)
+				continue
 			}
 		}
 
