@@ -86,6 +86,7 @@ func main() {
 				log.Printf("status_code: %d", resp.StatusCode)
 				continue
 			}
+			_ = resp.Body.Close()
 		}
 
 		parsedSysMetrics := []string{
@@ -103,6 +104,7 @@ func main() {
 				log.Printf("status_code: %d", resp.StatusCode)
 				continue
 			}
+			_ = resp.Body.Close()
 		}
 		sysMetrics.PollCount = 0
 		time.Sleep(time.Duration(reportInterval) * time.Second)
