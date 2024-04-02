@@ -94,7 +94,7 @@ func main() {
 		for _, s := range parsedSysMetrics {
 			resp, err := http.Post(s, "text/plain", nil)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
 			}
 			if resp.StatusCode != http.StatusOK {
 				log.Printf("status_code: %d", resp.StatusCode)
