@@ -23,13 +23,28 @@ type SysMon struct {
 
 type RtMonitorSensGauge []string
 
+func parsedSysMetricsURL(serverHost string, randVal gauge, pollCount counter) []string {
+	return []string{
+		fmt.Sprintf("%s/update/gauge/randomvalue/%f", serverHost, randVal),
+		fmt.Sprintf("%s/update/counter/pollcount/%d", serverHost, pollCount),
+	}
+}
+
+func parsedRtMetricURL(serverHost, metricName string, val reflect.Value) string {
+	return fmt.Sprintf("%s/update/gauge/%s/%v", serverHost, strings.ToLower(metricName), val)
+}
+
 func updateMetrics(memstat *runtime.MemStats, sysmetrics *SysMon, pollInterval int) {
 	for {
 		runtime.ReadMemStats(memstat)
 		sysmetrics.PollCount += 1
 		sysmetrics.RandomValue = gauge(rand.New(rand.NewSource(time.Now().UnixNano())).Float64())
 
-		time.Sleep(time.Duration(pollInterval) * time.Second)
+		if pollInterval > 0 {
+			time.Sleep(time.Duration(pollInterval) * time.Second)
+		} else {
+			break
+		}
 	}
 }
 
@@ -77,7 +92,7 @@ func main() {
 		rtmVal := reflect.ValueOf(rtm).Elem()
 		for i := 0; i < len(m); i++ {
 			v := rtmVal.FieldByName(m[i])
-			resp, err := http.Post(fmt.Sprintf("%s/update/gauge/%s/%v", serverHost, strings.ToLower(m[i]), v), "text/plain", nil)
+			resp, err := http.Post(parsedRtMetricURL(serverHost, m[i], v), "text/plain", nil)
 			if err != nil {
 				log.Println(err)
 				continue
@@ -89,12 +104,8 @@ func main() {
 			_ = resp.Body.Close()
 		}
 
-		parsedSysMetrics := []string{
-			fmt.Sprintf("%s/update/gauge/randomvalue/%f", serverHost, sysMetrics.RandomValue),
-			fmt.Sprintf("%s/update/counter/pollcount/%d", serverHost, sysMetrics.PollCount),
-		}
-
-		for _, s := range parsedSysMetrics {
+		sysM := parsedSysMetricsURL(serverHost, sysMetrics.RandomValue, sysMetrics.PollCount)
+		for _, s := range sysM {
 			resp, err := http.Post(s, "text/plain", nil)
 			if err != nil {
 				log.Println(err)

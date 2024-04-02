@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	gauge float64
+	gauge   float64
 	counter int64
 )
 
@@ -98,7 +98,7 @@ func updateMetrics(storage StoreMetrics) http.HandlerFunc {
 
 func getAll(m *MemStorage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(fmt.Sprint(*m)))
+		_, _ = w.Write([]byte(fmt.Sprint(*m)))
 	}
 }
 
