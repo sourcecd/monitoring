@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	gauge float64
+	gauge   float64
 	counter int64
 )
 
@@ -68,7 +68,7 @@ func main() {
 	}
 	rtm := &runtime.MemStats{}
 	sysMetrics := &SysMon{}
-	pollInterval := 2 //sec
+	pollInterval := 2    //sec
 	reportInterval := 10 //sec
 
 	go updateMetrics(rtm, sysMetrics, pollInterval)
