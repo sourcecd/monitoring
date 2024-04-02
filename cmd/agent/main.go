@@ -79,7 +79,7 @@ func main() {
 			v := rtmVal.FieldByName(m[i])
 			resp, err := http.Post(fmt.Sprintf("%s/update/gauge/%s/%v", serverHost, strings.ToLower(m[i]), v), "text/plain", nil)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
 			}
 			if resp.StatusCode != http.StatusOK {
 				log.Printf("status_code: %d", resp.StatusCode)
