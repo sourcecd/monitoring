@@ -11,11 +11,12 @@ type StoreMetrics interface {
 	WriteCounter(name string, value metrictypes.Counter) error
 }
 
-//inmemory
+// inmemory
 type MemStorage struct {
 	gauge   map[string]metrictypes.Gauge
 	counter map[string]metrictypes.Counter
 }
+
 func (m *MemStorage) WriteGauge(name string, value metrictypes.Gauge) error {
 	m.gauge[name] = value
 	return nil

@@ -3,9 +3,9 @@ package server
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
-	"net/http"
 
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/storage"
@@ -73,7 +73,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-//tmp func for test
+// tmp func for test
 func getAll(m *storage.MemStorage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(fmt.Sprint(*m)))
