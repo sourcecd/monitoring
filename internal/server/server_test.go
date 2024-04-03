@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"io"
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/sourcecd/monitoring/internal/storage"
 )
 
 func TestUpdateHandler(t *testing.T) {
@@ -17,10 +19,10 @@ func TestUpdateHandler(t *testing.T) {
 		metric     string
 		mType      string
 	}
-	testStorage := &MemStorage{
-		gauge:   make(map[string]gauge),
-		counter: make(map[string]counter),
-	}
+	
+	testStorage := &storage.MemStorage{}
+	testStorage.Setup()
+
 	hndl := updateMetrics(testStorage)
 
 	testCase := []struct {
@@ -62,9 +64,11 @@ func TestUpdateHandler(t *testing.T) {
 			assert.Equal(t, v.want.statusCode, respParsed.StatusCode)
 			assert.Equal(t, v.want.response, string(body))
 			if v.want.mType == "counter" {
-				assert.Contains(t, testStorage.counter, v.want.metric)
+				_, err := testStorage.GetCounter(v.want.metric)
+				assert.NoError(t, err)
 			} else if v.want.mType == "gauge" {
-				assert.Contains(t, testStorage.gauge, v.want.metric)
+				_, err := testStorage.GetGauge(v.want.metric)
+				assert.NoError(t, err)
 			} else {
 				t.Error("unknown metric type")
 			}
