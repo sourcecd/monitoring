@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"reflect"
@@ -6,18 +6,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/sourcecd/monitoring/internal/metrictypes"
 )
 
 func TestMetricsAgent(t *testing.T) {
 	rtm := &runtime.MemStats{}
 	sysMetrics := &SysMon{}
-	pollInterval := 0
 	numCount := 1
 	randVal := 0
 	testAllocSens := 0
 	testHost := "http://localhost:8080"
-	testrandVal := gauge(0.123)
-	testPollCount := counter(5)
+	testrandVal := metrictypes.Gauge(0.123)
+	testPollCount := metrictypes.Counter(5)
 	testRtFiledName := "Alloc"
 	expSysMetricURLs := []string{
 		"http://localhost:8080/update/gauge/randomvalue/0.123000",
@@ -28,11 +29,11 @@ func TestMetricsAgent(t *testing.T) {
 
 	parsedRtMetricURLres := parsedRtMetricURL(testHost, testRtFiledName, m.FieldByName(testRtFiledName))
 
-	updateMetrics(rtm, sysMetrics, pollInterval)
+	updateMetrics(rtm, sysMetrics)
 	urls := parsedSysMetricsURL(testHost, testrandVal, testPollCount)
 
-	assert.Equal(t, counter(numCount), sysMetrics.PollCount)
-	assert.NotEqual(t, gauge(randVal), sysMetrics.RandomValue)
+	assert.Equal(t, metrictypes.Counter(numCount), sysMetrics.PollCount)
+	assert.NotEqual(t, metrictypes.Gauge(randVal), sysMetrics.RandomValue)
 	assert.NotEqual(t, uint64(testAllocSens), rtm.Alloc)
 
 	assert.Equal(t, expSysMetricURLs, urls)
