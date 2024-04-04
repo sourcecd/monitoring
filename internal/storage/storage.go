@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 )
@@ -9,6 +10,9 @@ import (
 type StoreMetrics interface {
 	WriteGauge(name string, value metrictypes.Gauge) error
 	WriteCounter(name string, value metrictypes.Counter) error
+	GetGauge(name string) (metrictypes.Gauge, error)
+	GetCounter(name string) (metrictypes.Counter, error)
+	GetAllMetricsTxt() string
 }
 
 // inmemory
@@ -36,6 +40,17 @@ func (m *MemStorage) GetCounter(name string) (metrictypes.Counter, error) {
 		return v, nil
 	}
 	return metrictypes.Counter(0), errors.New("no counter value")
+}
+func (m *MemStorage) GetAllMetricsTxt() string {
+	s := "---Counters---\n"
+	for k, v := range m.counter {
+		s += fmt.Sprintf("%v: %v\n", k, v)
+	}
+	s += "---Gauge---\n"
+	for k, v := range m.gauge {
+		s += fmt.Sprintf("%v: %v\n", k, v)
+	}
+	return s
 }
 func (m *MemStorage) Setup() *MemStorage {
 	m.gauge = make(map[string]metrictypes.Gauge)

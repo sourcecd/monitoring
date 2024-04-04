@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-resty/resty/v2"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 )
 
@@ -76,6 +77,9 @@ func Run() {
 	pollInterval := 2    //sec
 	reportInterval := 10 //sec
 
+	client := resty.New()
+	r := client.R().SetHeader("Content-Type", "text/plain")
+
 	if reportInterval > 0 && pollInterval > 0 && reportInterval > pollInterval {
 		for {
 			timeStart := time.Now().Unix()
@@ -91,30 +95,28 @@ func Run() {
 			rtmVal := reflect.ValueOf(rtm).Elem()
 			for i := 0; i < len(m); i++ {
 				v := rtmVal.FieldByName(m[i])
-				resp, err := http.Post(parsedRtMetricURL(serverHost, m[i], v), "text/plain", nil)
+				resp, err := r.Post(parsedRtMetricURL(serverHost, m[i], v))
 				if err != nil {
 					log.Println(err)
 					continue
 				}
-				if resp.StatusCode != http.StatusOK {
-					log.Printf("status_code: %d", resp.StatusCode)
+				if resp.StatusCode() != http.StatusOK {
+					log.Printf("status_code: %d", resp.StatusCode())
 					continue
 				}
-				_ = resp.Body.Close()
 			}
 
 			sysM := parsedSysMetricsURL(serverHost, sysMetrics.RandomValue, sysMetrics.PollCount)
 			for _, s := range sysM {
-				resp, err := http.Post(s, "text/plain", nil)
+				resp, err := r.Post(s)
 				if err != nil {
 					log.Println(err)
 					continue
 				}
-				if resp.StatusCode != http.StatusOK {
-					log.Printf("status_code: %d", resp.StatusCode)
+				if resp.StatusCode() != http.StatusOK {
+					log.Printf("status_code: %d", resp.StatusCode())
 					continue
 				}
-				_ = resp.Body.Close()
 			}
 			sysMetrics.PollCount = 0
 		}
