@@ -7,6 +7,7 @@ import (
 func main() {
 
 	servFlags()
+	servEnv()
 
 	agent.Run(serverAddr, reportInterval, pollInterval)
 
