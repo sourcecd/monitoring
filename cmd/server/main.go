@@ -5,5 +5,8 @@ import (
 )
 
 func main() {
-	server.Run()
+
+	servFlags()
+
+	server.Run(serverAddr)
 }

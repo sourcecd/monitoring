@@ -136,9 +136,9 @@ func chiRouter(storage storage.StoreMetrics) chi.Router {
 	return r
 }
 
-func Run() {
+func Run(serverAddr string) {
 	m := &storage.MemStorage{}
 	m.Setup()
 
-	log.Fatal(http.ListenAndServe(":8080", chiRouter(m)))
+	log.Fatal(http.ListenAndServe(serverAddr, chiRouter(m)))
 }

@@ -68,14 +68,12 @@ func updateMetrics(memstat *runtime.MemStats, sysmetrics *SysMon) {
 	sysmetrics.RandomValue = metrictypes.Gauge(rand.New(rand.NewSource(time.Now().UnixNano())).Float64())
 }
 
-func Run() {
-	serverHost := "http://localhost:8080"
+func Run(serverAddr string, reportInterval, pollInterval int) {
+	serverHost := fmt.Sprintf("http://%s", serverAddr)
 
 	m := rtMonitorSensGauge()
 	rtm := &runtime.MemStats{}
 	sysMetrics := &SysMon{}
-	pollInterval := 2    //sec
-	reportInterval := 10 //sec
 
 	client := resty.New()
 	r := client.R().SetHeader("Content-Type", "text/plain")

@@ -6,6 +6,8 @@ import (
 
 func main() {
 
-	agent.Run()
+	servFlags()
+
+	agent.Run(serverAddr, reportInterval, pollInterval)
 
 }
