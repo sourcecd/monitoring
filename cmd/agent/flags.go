@@ -3,9 +3,9 @@ package main
 import "flag"
 
 var (
-	serverAddr string
+	serverAddr     string
 	reportInterval int
-	pollInterval int
+	pollInterval   int
 )
 
 func servFlags() {
