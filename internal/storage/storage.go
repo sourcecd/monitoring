@@ -25,35 +25,36 @@ type MemStorage struct {
 
 func (m *MemStorage) WriteGauge(name string, value metrictypes.Gauge) error {
 	m.mx.Lock()
-	m.gauge[name] = value
 	defer m.mx.Unlock()
+	m.gauge[name] = value
 	return nil
 }
 func (m *MemStorage) WriteCounter(name string, value metrictypes.Counter) error {
 	m.mx.Lock()
-	m.counter[name] += value
 	defer m.mx.Unlock()
+	m.counter[name] += value
 	return nil
 }
 func (m *MemStorage) GetGauge(name string) (metrictypes.Gauge, error) {
 	m.mx.RLock()
+	defer m.mx.RUnlock()
 	if v, ok := m.gauge[name]; ok {
 		return v, nil
 	}
-	defer m.mx.RUnlock()
 	return metrictypes.Gauge(0), errors.New("no gauge value")
 }
 func (m *MemStorage) GetCounter(name string) (metrictypes.Counter, error) {
 	m.mx.RLock()
+	defer m.mx.RUnlock()
 	if v, ok := m.counter[name]; ok {
 		return v, nil
 	}
-	defer m.mx.RUnlock()
 	return metrictypes.Counter(0), errors.New("no counter value")
 }
 func (m *MemStorage) GetAllMetricsTxt() string {
-	s := "---Counters---\n"
 	m.mx.RLock()
+	defer m.mx.RUnlock()
+	s := "---Counters---\n"
 	for k, v := range m.counter {
 		s += fmt.Sprintf("%v: %v\n", k, v)
 	}
@@ -61,7 +62,6 @@ func (m *MemStorage) GetAllMetricsTxt() string {
 	for k, v := range m.gauge {
 		s += fmt.Sprintf("%v: %v\n", k, v)
 	}
-	defer m.mx.RUnlock()
 	return s
 }
 func (m *MemStorage) Setup() *MemStorage {
