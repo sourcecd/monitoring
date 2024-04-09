@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"strconv"
 
-	//"strings"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/storage"
@@ -22,23 +20,10 @@ type urlToMetric struct {
 
 func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
-		// not needed for chi - 405 Method Not Allowed returns
-		/*if req.Method != http.MethodPost {
-			http.Error(resp, fmt.Sprintf("http method %s not acceptable for update metrics", req.Method), http.StatusBadRequest)
-			return
-		}*/
 		if req.Header.Get("Content-Type") != "" && req.Header.Get("Content-Type") != "text/plain" {
 			http.Error(resp, fmt.Sprintf("wrong content type: %s", req.Header.Get("Content-Type")), http.StatusBadRequest)
 			return
 		}
-
-		// not needed for chi
-		/*actionURL := req.URL.Path
-		urlSplit := strings.Split(strings.Trim(actionURL, "/"), "/")
-		if len(urlSplit) != 4 {
-			http.Error(resp, "url does not match patter: /update/[metric_type]/[metric_name]/value", http.StatusNotFound)
-			return
-		}*/
 
 		metric := urlToMetric{
 			metricType:  chi.URLParam(req, "type"),
@@ -64,7 +49,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 				return
 			}
 			if err := storage.WriteCounter(metric.metricName, metrictypes.Counter(i64)); err != nil {
-				http.Error(resp, "can't store counter metric", http.StatusBadRequest)
+				http.Error(resp, "can't store counter metric", http.StatusInternalServerError)
 				return
 			}
 		default:
@@ -121,7 +106,6 @@ func getAll(storage storage.StoreMetrics) http.HandlerFunc {
   </pre>
   </body>
 </html>`
-		//_, _ = w.Write([]byte(storage.GetAllMetricsTxt()))
 		_, _ = io.WriteString(w, fmt.Sprintf(htmlBasic, storage.GetAllMetricsTxt()))
 	}
 }

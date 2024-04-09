@@ -21,10 +21,10 @@ func TestMetricsAgent(t *testing.T) {
 	testPollCount := metrictypes.Counter(5)
 	testRtFiledName := "Alloc"
 	expSysMetricURLs := []string{
-		"http://localhost:8080/update/gauge/randomvalue/0.123000",
-		"http://localhost:8080/update/counter/pollcount/5",
+		"http://localhost:8080/update/gauge/RandomValue/0.123000",
+		"http://localhost:8080/update/counter/PollCount/5",
 	}
-	expRtMetricURL := "http://localhost:8080/update/gauge/alloc/0"
+	expRtMetricURL := "http://localhost:8080/update/gauge/Alloc/0"
 	m := reflect.ValueOf(rtm).Elem()
 
 	parsedRtMetricURLres := parsedRtMetricURL(testHost, testRtFiledName, m.FieldByName(testRtFiledName))

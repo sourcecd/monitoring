@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"reflect"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -53,13 +52,13 @@ func rtMonitorSensGauge() []string {
 
 func parsedSysMetricsURL(serverHost string, randVal metrictypes.Gauge, pollCount metrictypes.Counter) []string {
 	return []string{
-		fmt.Sprintf("%s/update/gauge/randomvalue/%f", serverHost, randVal),
-		fmt.Sprintf("%s/update/counter/pollcount/%d", serverHost, pollCount),
+		fmt.Sprintf("%s/update/gauge/RandomValue/%f", serverHost, randVal),
+		fmt.Sprintf("%s/update/counter/PollCount/%d", serverHost, pollCount),
 	}
 }
 
 func parsedRtMetricURL(serverHost, metricName string, val reflect.Value) string {
-	return fmt.Sprintf("%s/update/gauge/%s/%v", serverHost, strings.ToLower(metricName), val)
+	return fmt.Sprintf("%s/update/gauge/%s/%v", serverHost, metricName, val)
 }
 
 func updateMetrics(memstat *runtime.MemStats, sysmetrics *SysMon) {
@@ -78,47 +77,48 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 	client := resty.New()
 	r := client.R().SetHeader("Content-Type", "text/plain")
 
-	if reportInterval > 0 && pollInterval > 0 && reportInterval > pollInterval {
-		for {
-			timeStart := time.Now().Unix()
-			for {
-				updateMetrics(rtm, sysMetrics)
-
-				time.Sleep(time.Duration(pollInterval) * time.Second)
-				if time.Now().Unix()-timeStart >= int64(reportInterval) {
-					break
-				}
-			}
-
-			rtmVal := reflect.ValueOf(rtm).Elem()
-			for i := 0; i < len(m); i++ {
-				v := rtmVal.FieldByName(m[i])
-				resp, err := r.Post(parsedRtMetricURL(serverHost, m[i], v))
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				if resp.StatusCode() != http.StatusOK {
-					log.Printf("status_code: %d", resp.StatusCode())
-					continue
-				}
-			}
-
-			sysM := parsedSysMetricsURL(serverHost, sysMetrics.RandomValue, sysMetrics.PollCount)
-			for _, s := range sysM {
-				resp, err := r.Post(s)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				if resp.StatusCode() != http.StatusOK {
-					log.Printf("status_code: %d", resp.StatusCode())
-					continue
-				}
-			}
-			sysMetrics.PollCount = 0
-		}
-	} else {
+	if reportInterval <= 0 || pollInterval <= 0 {
 		log.Fatal("wrong intervals")
+	}
+	for {
+		timeStart := time.Now().Unix()
+		for {
+			updateMetrics(rtm, sysMetrics)
+
+			time.Sleep(time.Duration(pollInterval) * time.Second)
+			if time.Now().Unix()-timeStart >= int64(reportInterval) {
+				break
+			}
+		}
+
+		rtmVal := reflect.ValueOf(rtm).Elem()
+		for i := 0; i < len(m); i++ {
+			v := rtmVal.FieldByName(m[i])
+			// resty framework automaticaly close Body
+			resp, err := r.Post(parsedRtMetricURL(serverHost, m[i], v))
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			if resp.StatusCode() != http.StatusOK {
+				log.Printf("status_code: %d", resp.StatusCode())
+				continue
+			}
+		}
+
+		sysM := parsedSysMetricsURL(serverHost, sysMetrics.RandomValue, sysMetrics.PollCount)
+		for _, s := range sysM {
+			// resty framework automaticaly close Body
+			resp, err := r.Post(s)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			if resp.StatusCode() != http.StatusOK {
+				log.Printf("status_code: %d", resp.StatusCode())
+				continue
+			}
+		}
+		sysMetrics.PollCount = 0
 	}
 }
