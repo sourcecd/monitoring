@@ -3,13 +3,14 @@ package server
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/sourcecd/monitoring/internal/logging"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/storage"
+	"go.uber.org/zap"
 )
 
 type urlToMetric struct {
@@ -75,6 +76,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 				http.Error(resp, "gauge not found", http.StatusNotFound)
 				return
 			}
+			resp.WriteHeader(http.StatusOK)
 			_, _ = io.WriteString(resp, fmt.Sprintf("%v\n", val))
 		case "counter":
 			val, err := storage.GetCounter(mVal)
@@ -82,6 +84,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 				http.Error(resp, "counter not found", http.StatusNotFound)
 				return
 			}
+			resp.WriteHeader(http.StatusOK)
 			_, _ = io.WriteString(resp, fmt.Sprintf("%v\n", val))
 		default:
 			http.Error(resp, "metric_type not found", http.StatusBadRequest)
@@ -106,6 +109,7 @@ func getAll(storage storage.StoreMetrics) http.HandlerFunc {
   </pre>
   </body>
 </html>`
+		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, fmt.Sprintf(htmlBasic, storage.GetAllMetricsTxt()))
 	}
 }
@@ -113,16 +117,22 @@ func getAll(storage storage.StoreMetrics) http.HandlerFunc {
 func chiRouter(storage storage.StoreMetrics) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/update/{type}/{name}/{value}", updateMetrics(storage))
-	r.Get("/value/{type}/{val}", getMetrics(storage))
-	r.Get("/", getAll(storage))
+	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(updateMetrics(storage)))
+	r.Get("/value/{type}/{val}", logging.WriteLogging(getMetrics(storage)))
+	r.Get("/", logging.WriteLogging(getAll(storage)))
 
 	return r
 }
 
-func Run(serverAddr string) {
+func Run(serverAddr, loglevel string) {
+
+	if err := logging.Setup(loglevel); err != nil {
+		panic(err)
+	}
+
 	m := &storage.MemStorage{}
 	m.Setup()
 
-	log.Fatal(http.ListenAndServe(serverAddr, chiRouter(m)))
+	logging.Log.Info("Starting server on", zap.String("address", serverAddr))
+	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(serverAddr, chiRouter(m))))
 }
