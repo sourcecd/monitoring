@@ -129,7 +129,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	defer ts.Close()
 
 	//json api
-	testCaseJson := []struct {
+	testCaseJSON := []struct {
 		name string
 		want want
 	}{
@@ -206,7 +206,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	}
 
 	//json api
-	for _, v := range testCaseJson {
+	for _, v := range testCaseJSON {
 		t.Run(v.name, func(t *testing.T) {
 			req, err := http.NewRequest(v.want.method, ts.URL+v.want.request, strings.NewReader(v.want.requestBody))
 			req.Header.Set("Content-Type", "application/json")
