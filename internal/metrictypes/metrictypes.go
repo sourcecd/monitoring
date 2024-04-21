@@ -1,7 +1,7 @@
 package metrictypes
 
 const (
-	GaugeType = "gauge"
+	GaugeType   = "gauge"
 	CounterType = "counter"
 )
 

@@ -115,10 +115,10 @@ func TestUpdateHandler(t *testing.T) {
 
 func TestUpdateHandlerJson(t *testing.T) {
 	type want struct {
-		method     string
-		statusCode int
-		response   string
-		request    string
+		method      string
+		statusCode  int
+		response    string
+		request     string
 		requestBody string
 	}
 
@@ -136,75 +136,75 @@ func TestUpdateHandlerJson(t *testing.T) {
 		{
 			name: "test1j",
 			want: want{
-				method:     http.MethodPost,
-				statusCode: 200,
-				response:   `{"id":"testCounter","type":"counter","delta":100}`,
-				request:    "/update/",
+				method:      http.MethodPost,
+				statusCode:  200,
+				response:    `{"id":"testCounter","type":"counter","delta":100}`,
+				request:     "/update/",
 				requestBody: `{"id": "testCounter", "type": "counter", "delta": 100}`,
 			},
 		},
 		{
 			name: "test2j",
 			want: want{
-				method:     http.MethodPost,
-				statusCode: 200,
-				response:   `{"id":"testGauge","type":"gauge","value":0.1}`,
-				request:    "/update/",
+				method:      http.MethodPost,
+				statusCode:  200,
+				response:    `{"id":"testGauge","type":"gauge","value":0.1}`,
+				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "gauge", "value": 0.1}`,
 			},
 		},
 		{
 			name: "test3j",
 			want: want{
-				method:     http.MethodPost,
-				statusCode: 400,
-				response:   "no value of gauge metric",
-				request:    "/update/",
+				method:      http.MethodPost,
+				statusCode:  400,
+				response:    "no value of gauge metric",
+				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "gauge"}`,
 			},
 		},
 		{
 			name: "test4j",
 			want: want{
-				method:     http.MethodPost,
-				statusCode: 400,
-				response:   "no value of counter metric",
-				request:    "/update/",
+				method:      http.MethodPost,
+				statusCode:  400,
+				response:    "no value of counter metric",
+				request:     "/update/",
 				requestBody: `{"id": "testcounter2", "type": "counter"}`,
 			},
 		},
 		{
 			name: "test5j",
 			want: want{
-				method:     http.MethodPost,
-				statusCode: 400,
-				response:   "bad metric type",
-				request:    "/update/",
+				method:      http.MethodPost,
+				statusCode:  400,
+				response:    "bad metric type",
+				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "qwe", "value": 0.1}`,
 			},
 		},
 		{
 			name: "test6-get-test1j",
 			want: want{
-				method:     http.MethodPost,
-				statusCode: 200,
-				response:   `{"id":"testCounter","type":"counter","delta":100}`,
-				request:    "/value/",
+				method:      http.MethodPost,
+				statusCode:  200,
+				response:    `{"id":"testCounter","type":"counter","delta":100}`,
+				request:     "/value/",
 				requestBody: `{"id": "testCounter", "type": "counter"}`,
 			},
 		},
 		{
 			name: "test7-get-test2j",
 			want: want{
-				method:     http.MethodPost,
-				statusCode: 200,
-				response:   `{"id":"testGauge","type":"gauge","value":0.1}`,
-				request:    "/value/",
+				method:      http.MethodPost,
+				statusCode:  200,
+				response:    `{"id":"testGauge","type":"gauge","value":0.1}`,
+				request:     "/value/",
 				requestBody: `{"id": "testGauge", "type": "gauge"}`,
 			},
 		},
 	}
-	
+
 	//json api
 	for _, v := range testCaseJson {
 		t.Run(v.name, func(t *testing.T) {

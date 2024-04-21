@@ -126,13 +126,13 @@ func updateMetricsJson(storage storage.StoreMetrics) http.HandlerFunc {
 
 		resultParsedJson := models.Metrics{}
 		dec := json.NewDecoder(r.Body)
-		
+
 		if err := dec.Decode(&resultParsedJson); err != nil {
 			http.Error(w, "error to pasrse json request", http.StatusBadRequest)
 			return
 		}
 		enc := json.NewEncoder(w)
-		
+
 		switch resultParsedJson.MType {
 		case metrictypes.GaugeType:
 			if resultParsedJson.Value == nil {

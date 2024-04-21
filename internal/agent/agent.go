@@ -55,12 +55,12 @@ func rtMonitorSensGauge() []string {
 
 func parsedSysMetricsURL(randVal metrictypes.Gauge, pollCount metrictypes.Counter) []string {
 	metricRand := models.Metrics{
-		ID: "RandomValue",
+		ID:    "RandomValue",
 		MType: metrictypes.GaugeType,
 		Value: (*float64)(&randVal),
 	}
 	metricPollCount := models.Metrics{
-		ID: "PollCount",
+		ID:    "PollCount",
 		MType: metrictypes.CounterType,
 		Delta: (*int64)(&pollCount),
 	}
@@ -75,7 +75,7 @@ func parsedSysMetricsURL(randVal metrictypes.Gauge, pollCount metrictypes.Counte
 func parsedRtMetricURL(metricName string, val float64) string {
 	jRes, _ := json.Marshal(
 		&models.Metrics{
-			ID: metricName,
+			ID:    metricName,
 			MType: metrictypes.GaugeType,
 			Value: &val,
 		})
