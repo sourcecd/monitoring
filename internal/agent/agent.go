@@ -1,16 +1,19 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"reflect"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
+	"github.com/sourcecd/monitoring/internal/models"
 )
 
 type SysMon struct {
@@ -50,15 +53,33 @@ func rtMonitorSensGauge() []string {
 	}
 }
 
-func parsedSysMetricsURL(serverHost string, randVal metrictypes.Gauge, pollCount metrictypes.Counter) []string {
+func parsedSysMetricsURL(randVal metrictypes.Gauge, pollCount metrictypes.Counter) []string {
+	metricRand := models.Metrics{
+		ID: "RandomValue",
+		MType: metrictypes.GaugeType,
+		Value: (*float64)(&randVal),
+	}
+	metricPollCount := models.Metrics{
+		ID: "PollCount",
+		MType: metrictypes.CounterType,
+		Delta: (*int64)(&pollCount),
+	}
+	metricRandJ, _ := json.Marshal(&metricRand)
+	metricPollCountJ, _ := json.Marshal(&metricPollCount)
 	return []string{
-		fmt.Sprintf("%s/update/gauge/RandomValue/%f", serverHost, randVal),
-		fmt.Sprintf("%s/update/counter/PollCount/%d", serverHost, pollCount),
+		string(metricRandJ),
+		string(metricPollCountJ),
 	}
 }
 
-func parsedRtMetricURL(serverHost, metricName string, val reflect.Value) string {
-	return fmt.Sprintf("%s/update/gauge/%s/%v", serverHost, metricName, val)
+func parsedRtMetricURL(metricName string, val float64) string {
+	jRes, _ := json.Marshal(
+		&models.Metrics{
+			ID: metricName,
+			MType: metrictypes.GaugeType,
+			Value: &val,
+		})
+	return string(jRes)
 }
 
 func updateMetrics(memstat *runtime.MemStats, sysmetrics *SysMon) {
@@ -75,7 +96,7 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 	sysMetrics := &SysMon{}
 
 	client := resty.New()
-	r := client.R().SetHeader("Content-Type", "text/plain")
+	r := client.R().SetHeader("Content-Type", "application/json")
 
 	if reportInterval <= 0 || pollInterval <= 0 {
 		log.Fatal("wrong intervals")
@@ -94,8 +115,13 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 		rtmVal := reflect.ValueOf(rtm).Elem()
 		for i := 0; i < len(m); i++ {
 			v := rtmVal.FieldByName(m[i])
+			fl64, err := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
 			// resty framework automaticaly close Body
-			resp, err := r.Post(parsedRtMetricURL(serverHost, m[i], v))
+			resp, err := r.SetBody(parsedRtMetricURL(m[i], fl64)).Post(serverHost + "/update/")
 			if err != nil {
 				log.Println(err)
 				continue
@@ -106,10 +132,10 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 			}
 		}
 
-		sysM := parsedSysMetricsURL(serverHost, sysMetrics.RandomValue, sysMetrics.PollCount)
+		sysM := parsedSysMetricsURL(sysMetrics.RandomValue, sysMetrics.PollCount)
 		for _, s := range sysM {
 			// resty framework automaticaly close Body
-			resp, err := r.Post(s)
+			resp, err := r.SetBody(s).Post(serverHost + "/update/")
 			if err != nil {
 				log.Println(err)
 				continue

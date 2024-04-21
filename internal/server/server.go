@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sourcecd/monitoring/internal/logging"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
+	"github.com/sourcecd/monitoring/internal/models"
 	"github.com/sourcecd/monitoring/internal/storage"
 	"go.uber.org/zap"
 )
@@ -33,17 +35,17 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 		}
 
 		switch metric.metricType {
-		case "gauge":
+		case metrictypes.GaugeType:
 			fl64, err := strconv.ParseFloat(metric.metricValue, 64)
 			if err != nil {
 				http.Error(resp, "can't parse gauge metric", http.StatusBadRequest)
 				return
 			}
 			if err := storage.WriteGauge(metric.metricName, metrictypes.Gauge(fl64)); err != nil {
-				http.Error(resp, "can't store gauge metric", http.StatusBadRequest)
+				http.Error(resp, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
-		case "counter":
+		case metrictypes.CounterType:
 			i64, err := strconv.ParseInt(metric.metricValue, 10, 64)
 			if err != nil {
 				http.Error(resp, "can't parse counter metric", http.StatusBadRequest)
@@ -70,7 +72,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 		mType := chi.URLParam(req, "type")
 		mVal := chi.URLParam(req, "val")
 		switch mType {
-		case "gauge":
+		case metrictypes.GaugeType:
 			val, err := storage.GetGauge(mVal)
 			if err != nil {
 				http.Error(resp, "gauge not found", http.StatusNotFound)
@@ -78,7 +80,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			}
 			resp.WriteHeader(http.StatusOK)
 			_, _ = io.WriteString(resp, fmt.Sprintf("%v\n", val))
-		case "counter":
+		case metrictypes.CounterType:
 			val, err := storage.GetCounter(mVal)
 			if err != nil {
 				http.Error(resp, "counter not found", http.StatusNotFound)
@@ -114,12 +116,118 @@ func getAll(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
+func updateMetricsJson(storage storage.StoreMetrics) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Type") != "application/json" {
+			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		resultParsedJson := models.Metrics{}
+		dec := json.NewDecoder(r.Body)
+		
+		if err := dec.Decode(&resultParsedJson); err != nil {
+			http.Error(w, "error to pasrse json request", http.StatusBadRequest)
+			return
+		}
+		enc := json.NewEncoder(w)
+		
+		switch resultParsedJson.MType {
+		case metrictypes.GaugeType:
+			if resultParsedJson.Value == nil {
+				http.Error(w, "no value of gauge metric", http.StatusBadRequest)
+				return
+			}
+			if err := storage.WriteGauge(resultParsedJson.ID, metrictypes.Gauge(*resultParsedJson.Value)); err != nil {
+				http.Error(w, "can't store gauge metric", http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			if err := enc.Encode(&resultParsedJson); err != nil {
+				http.Error(w, "can't create gauge json answer", http.StatusInternalServerError)
+				return
+			}
+		case metrictypes.CounterType:
+			if resultParsedJson.Delta == nil {
+				http.Error(w, "no value of counter metric", http.StatusBadRequest)
+				return
+			}
+			if err := storage.WriteCounter(resultParsedJson.ID, metrictypes.Counter(*resultParsedJson.Delta)); err != nil {
+				http.Error(w, "can't store counter metric", http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			if err := enc.Encode(&resultParsedJson); err != nil {
+				http.Error(w, "can't create counter json answer", http.StatusInternalServerError)
+				return
+			}
+		default:
+			http.Error(w, "bad metric type", http.StatusBadRequest)
+			return
+		}
+	}
+}
+
+func getMetricsJson(storage storage.StoreMetrics) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Type") != "application/json" {
+			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		resultParsedJson := models.Metrics{}
+		dec := json.NewDecoder(r.Body)
+
+		if err := dec.Decode(&resultParsedJson); err != nil {
+			http.Error(w, "error to pasrse json request", http.StatusBadRequest)
+			return
+		}
+		enc := json.NewEncoder(w)
+
+		switch resultParsedJson.MType {
+		case metrictypes.GaugeType:
+			res, err := storage.GetGauge(resultParsedJson.ID)
+			if err != nil {
+				http.Error(w, "gauge metric not found", http.StatusNotFound)
+				return
+			}
+			resultParsedJson.Value = (*float64)(&res)
+			w.WriteHeader(http.StatusOK)
+			if err := enc.Encode(&resultParsedJson); err != nil {
+				http.Error(w, "can't create gauge json", http.StatusInternalServerError)
+				return
+			}
+		case metrictypes.CounterType:
+			res, err := storage.GetCounter(resultParsedJson.ID)
+			if err != nil {
+				http.Error(w, "counter metric not found", http.StatusNotFound)
+				return
+			}
+			resultParsedJson.Delta = (*int64)(&res)
+			w.WriteHeader(http.StatusOK)
+			if err := enc.Encode(&resultParsedJson); err != nil {
+				http.Error(w, "can't create counter json", http.StatusInternalServerError)
+				return
+			}
+		default:
+			http.Error(w, "bad metric type", http.StatusBadRequest)
+			return
+		}
+	}
+}
+
 func chiRouter(storage storage.StoreMetrics) chi.Router {
 	r := chi.NewRouter()
 
 	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(updateMetrics(storage)))
 	r.Get("/value/{type}/{val}", logging.WriteLogging(getMetrics(storage)))
 	r.Get("/", logging.WriteLogging(getAll(storage)))
+
+	//json
+	r.Post("/update/", logging.WriteLogging(updateMetricsJson(storage)))
+	r.Post("/value/", logging.WriteLogging(getMetricsJson(storage)))
 
 	return r
 }

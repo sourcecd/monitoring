@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"fmt"
 	"reflect"
 	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,21 +18,24 @@ func TestMetricsAgent(t *testing.T) {
 	numCount := 1
 	randVal := 0
 	testAllocSens := 0
-	testHost := "http://localhost:8080"
 	testrandVal := metrictypes.Gauge(0.123)
 	testPollCount := metrictypes.Counter(5)
 	testRtFiledName := "Alloc"
 	expSysMetricURLs := []string{
-		"http://localhost:8080/update/gauge/RandomValue/0.123000",
-		"http://localhost:8080/update/counter/PollCount/5",
+		`{"id":"RandomValue","type":"gauge","value":0.123}`,
+		`{"id":"PollCount","type":"counter","delta":5}`,
 	}
-	expRtMetricURL := "http://localhost:8080/update/gauge/Alloc/0"
+	expRtMetricURL := `{"id":"Alloc","type":"gauge","value":0}`
+	// get val
 	m := reflect.ValueOf(rtm).Elem()
+	stringTestRt := fmt.Sprintf("%v", m.FieldByName(testRtFiledName))
+	fl64, err := strconv.ParseFloat(fmt.Sprintf("%v", stringTestRt), 64)
+	assert.NoError(t, err)
 
-	parsedRtMetricURLres := parsedRtMetricURL(testHost, testRtFiledName, m.FieldByName(testRtFiledName))
+	parsedRtMetricURLres := parsedRtMetricURL(testRtFiledName, fl64)
 
 	updateMetrics(rtm, sysMetrics)
-	urls := parsedSysMetricsURL(testHost, testrandVal, testPollCount)
+	urls := parsedSysMetricsURL(testrandVal, testPollCount)
 
 	assert.Equal(t, metrictypes.Counter(numCount), sysMetrics.PollCount)
 	assert.NotEqual(t, metrictypes.Gauge(randVal), sysMetrics.RandomValue)
