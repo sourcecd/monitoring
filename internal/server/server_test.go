@@ -113,7 +113,7 @@ func TestUpdateHandler(t *testing.T) {
 	}
 }
 
-func TestUpdateHandlerJson(t *testing.T) {
+func TestUpdateHandlerJSON(t *testing.T) {
 	type want struct {
 		method      string
 		statusCode  int

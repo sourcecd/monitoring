@@ -116,7 +116,7 @@ func getAll(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func updateMetricsJson(storage storage.StoreMetrics) http.HandlerFunc {
+func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Content-Type") != "application/json" {
 			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
@@ -169,7 +169,7 @@ func updateMetricsJson(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func getMetricsJson(storage storage.StoreMetrics) http.HandlerFunc {
+func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Content-Type") != "application/json" {
 			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
@@ -226,8 +226,8 @@ func chiRouter(storage storage.StoreMetrics) chi.Router {
 	r.Get("/", logging.WriteLogging(getAll(storage)))
 
 	//json
-	r.Post("/update/", logging.WriteLogging(updateMetricsJson(storage)))
-	r.Post("/value/", logging.WriteLogging(getMetricsJson(storage)))
+	r.Post("/update/", logging.WriteLogging(updateMetricsJSON(storage)))
+	r.Post("/value/", logging.WriteLogging(getMetricsJSON(storage)))
 
 	return r
 }
