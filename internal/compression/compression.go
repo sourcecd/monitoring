@@ -77,7 +77,7 @@ func GzipCompDecomp(h http.HandlerFunc) http.HandlerFunc {
 			supportsContentType = strings.Contains(allowedCompressTypes, contentType)
 		}
 		supportsGzip := strings.Contains(acceptEncoding, "gzip")
-		if supportsGzip && supportsContentType {
+		if supportsGzip && (r.Method == http.MethodGet || supportsContentType) {
 			cw := newCompressWriter(w)
 			ow = cw
 			defer cw.Close()
