@@ -9,5 +9,5 @@ func main() {
 	servFlags()
 	servEnv()
 
-	server.Run(serverAddr, loglevel)
+	server.Run(serverAddr, loglevel, storeInterval, fileStoragePath, restore)
 }

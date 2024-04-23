@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sourcecd/monitoring/internal/compression"
@@ -233,7 +235,16 @@ func chiRouter(storage storage.StoreMetrics) chi.Router {
 	return r
 }
 
-func Run(serverAddr, loglevel string) {
+func saveToFile(m *storage.MemStorage, fname string, duration int) {
+	for {
+		time.Sleep(time.Second * time.Duration(duration))
+		if err := m.SaveToFile(fname); err != nil {
+			log.Println(err)
+		}
+	}
+}
+
+func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string, restore bool) {
 
 	if err := logging.Setup(loglevel); err != nil {
 		panic(err)
@@ -241,6 +252,14 @@ func Run(serverAddr, loglevel string) {
 
 	m := &storage.MemStorage{}
 	m.Setup()
+
+	if restore {
+		if err := m.ReadFromFile(fileStoragePath); err != nil {
+			log.Println(err)
+		}
+	}
+
+	go saveToFile(m, fileStoragePath, storeInterval)
 
 	logging.Log.Info("Starting server on", zap.String("address", serverAddr))
 	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(serverAddr, chiRouter(m))))

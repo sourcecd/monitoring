@@ -1,11 +1,15 @@
 package storage
 
 import (
+	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/sourcecd/monitoring/internal/metrictypes"
+	"github.com/sourcecd/monitoring/internal/models"
 )
 
 type StoreMetrics interface {
@@ -64,6 +68,72 @@ func (m *MemStorage) GetAllMetricsTxt() string {
 	}
 	return s
 }
+
+func (m *MemStorage) SaveToFile(fname string) error {
+	f, err := os.Create(fname)
+	if err != nil {
+		return err
+	}
+
+	m.mx.RLock()
+	defer m.mx.RUnlock()
+
+	defer func() {
+		_ = f.Close()
+	}()
+
+	enc := json.NewEncoder(f)
+
+	for k, v := range m.counter {
+		_ = enc.Encode(models.Metrics{
+			MType: metrictypes.CounterType,
+			ID:    k,
+			Delta: (*int64)(&v),
+		})
+	}
+	for k, v := range m.gauge {
+		_ = enc.Encode(models.Metrics{
+			MType: metrictypes.GaugeType,
+			ID:    k,
+			Value: (*float64)(&v),
+		})
+	}
+	return nil
+}
+
+func (m *MemStorage) ReadFromFile(fname string) error {
+	f, err := os.Open(fname)
+	if err != nil {
+		return err
+	}
+
+	m.mx.Lock()
+	defer m.mx.Unlock()
+
+	defer func() {
+		_ = f.Close()
+	}()
+
+	scanner := bufio.NewScanner(f)
+
+	for scanner.Scan() {
+		metric := &models.Metrics{}
+		if err := json.Unmarshal(scanner.Bytes(), metric); err != nil {
+			return err
+		}
+		switch metric.MType {
+		case metrictypes.CounterType:
+			m.counter[metric.ID] = metrictypes.Counter(*metric.Delta)
+		case metrictypes.GaugeType:
+			m.gauge[metric.ID] = metrictypes.Gauge(*metric.Value)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *MemStorage) Setup() *MemStorage {
 	m.gauge = make(map[string]metrictypes.Gauge)
 	m.counter = make(map[string]metrictypes.Counter)
