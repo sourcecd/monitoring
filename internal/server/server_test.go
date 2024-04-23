@@ -1,13 +1,14 @@
 package server
 
 import (
+	"compress/gzip"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sourcecd/monitoring/internal/storage"
@@ -99,6 +100,7 @@ func TestUpdateHandler(t *testing.T) {
 	for _, v := range testCase {
 		t.Run(v.name, func(t *testing.T) {
 			req, err := http.NewRequest(v.want.method, ts.URL+v.want.request, nil)
+			req.Header.Set("Content-Type", "text/plain")
 			require.NoError(t, err)
 
 			resp, err := ts.Client().Do(req)
@@ -108,7 +110,7 @@ func TestUpdateHandler(t *testing.T) {
 			body, _ := io.ReadAll(resp.Body)
 
 			require.Equal(t, v.want.statusCode, resp.StatusCode)
-			assert.Equal(t, v.want.response, string(body))
+			require.Equal(t, v.want.response, string(body))
 		})
 	}
 }
@@ -158,7 +160,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "no value of gauge metric",
+				response:    "no value of gauge metric\n",
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "gauge"}`,
 			},
@@ -168,7 +170,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "no value of counter metric",
+				response:    "no value of counter metric\n",
 				request:     "/update/",
 				requestBody: `{"id": "testcounter2", "type": "counter"}`,
 			},
@@ -178,7 +180,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "bad metric type",
+				response:    "bad metric type\n",
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "qwe", "value": 0.1}`,
 			},
@@ -208,18 +210,31 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	//json api
 	for _, v := range testCaseJSON {
 		t.Run(v.name, func(t *testing.T) {
+			var body []byte
 			req, err := http.NewRequest(v.want.method, ts.URL+v.want.request, strings.NewReader(v.want.requestBody))
 			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept-Encoding", "gzip")
 			require.NoError(t, err)
 
 			resp, err := ts.Client().Do(req)
 			require.NoError(t, err)
+			require.Equal(t, v.want.statusCode, resp.StatusCode)
 			defer resp.Body.Close()
 
-			body, _ := io.ReadAll(resp.Body)
+			compressType := resp.Header.Get("Content-Encoding")
+			require.Equal(t, "gzip", compressType)
 
-			require.Equal(t, v.want.statusCode, resp.StatusCode)
-			assert.Equal(t, v.want.response, strings.Trim(string(body), "\n"))
+			gzr, err := gzip.NewReader(resp.Body)
+			require.NoError(t, err)
+
+			body, err = io.ReadAll(gzr)
+			require.NoError(t, err)
+
+			if v.want.statusCode == http.StatusOK {
+				require.JSONEq(t, v.want.response, string(body))
+			} else {
+				require.Equal(t, v.want.response, string(body))
+			}
 		})
 	}
 }

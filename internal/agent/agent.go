@@ -121,6 +121,7 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 				continue
 			}
 			// resty framework automaticaly close Body
+			// resty automatical send Accept-Encoding: gzip (can see it in server log)
 			resp, err := r.SetBody(parsedRtMetricURL(m[i], fl64)).Post(serverHost + "/update/")
 			if err != nil {
 				log.Println(err)
@@ -135,6 +136,7 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 		sysM := parsedSysMetricsURL(sysMetrics.RandomValue, sysMetrics.PollCount)
 		for _, s := range sysM {
 			// resty framework automaticaly close Body
+			// resty automatical send Accept-Encoding: gzip (can see it in server log)
 			resp, err := r.SetBody(s).Post(serverHost + "/update/")
 			if err != nil {
 				log.Println(err)

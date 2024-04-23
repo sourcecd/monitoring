@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/sourcecd/monitoring/internal/compression"
 	"github.com/sourcecd/monitoring/internal/logging"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
@@ -221,13 +222,13 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 func chiRouter(storage storage.StoreMetrics) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(updateMetrics(storage)))
-	r.Get("/value/{type}/{val}", logging.WriteLogging(getMetrics(storage)))
-	r.Get("/", logging.WriteLogging(getAll(storage)))
+	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(updateMetrics(storage))))
+	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(getMetrics(storage))))
+	r.Get("/", logging.WriteLogging(compression.GzipCompDecomp(getAll(storage))))
 
 	//json
-	r.Post("/update/", logging.WriteLogging(updateMetricsJSON(storage)))
-	r.Post("/value/", logging.WriteLogging(getMetricsJSON(storage)))
+	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(updateMetricsJSON(storage))))
+	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(getMetricsJSON(storage))))
 
 	return r
 }

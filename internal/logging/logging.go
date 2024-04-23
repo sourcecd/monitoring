@@ -62,6 +62,7 @@ func WriteLogging(h http.HandlerFunc) http.HandlerFunc {
 			ResponseWriter: w,
 			responseData:   responseData,
 		}
+		encCheck := r.Header.Get("Accept-Encoding")
 
 		h(&lw, r)
 
@@ -73,6 +74,7 @@ func WriteLogging(h http.HandlerFunc) http.HandlerFunc {
 			zap.Duration("duration", duration),
 			zap.Int("StatusCode", responseData.status),
 			zap.Int("content-length", responseData.size),
+			zap.String("Accept-Encoding", encCheck),
 		)
 	}
 }
