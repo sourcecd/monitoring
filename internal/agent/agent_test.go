@@ -14,16 +14,16 @@ import (
 
 func TestMetricsAgent(t *testing.T) {
 	rtm := &runtime.MemStats{}
-	sysMetrics := &SysMon{}
+	sysMetrics := &sysMon{}
 	numCount := 1
 	randVal := 0
 	testAllocSens := 0
 	testrandVal := metrictypes.Gauge(0.123)
 	testPollCount := metrictypes.Counter(5)
 	testRtFiledName := "Alloc"
-	expSysMetricURLs := []string{
-		`{"id":"RandomValue","type":"gauge","value":0.123}`,
-		`{"id":"PollCount","type":"counter","delta":5}`,
+	expSysMetricURLs := &sysMetricsJSON{
+		metricRandJ: `{"id":"RandomValue","type":"gauge","value":0.123}`,
+		metricPollCountJ: `{"id":"PollCount","type":"counter","delta":5}`,
 	}
 	expRtMetricURL := `{"id":"Alloc","type":"gauge","value":0}`
 	// get val
@@ -37,8 +37,8 @@ func TestMetricsAgent(t *testing.T) {
 	updateMetrics(rtm, sysMetrics)
 	urls := parsedSysMetricsURL(testrandVal, testPollCount)
 
-	assert.Equal(t, metrictypes.Counter(numCount), sysMetrics.PollCount)
-	assert.NotEqual(t, metrictypes.Gauge(randVal), sysMetrics.RandomValue)
+	assert.Equal(t, metrictypes.Counter(numCount), sysMetrics.pollCount)
+	assert.NotEqual(t, metrictypes.Gauge(randVal), sysMetrics.randomValue)
 	assert.NotEqual(t, uint64(testAllocSens), rtm.Alloc)
 
 	assert.Equal(t, expSysMetricURLs, urls)

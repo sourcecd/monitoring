@@ -121,13 +121,14 @@ func getAll(storage storage.StoreMetrics) http.HandlerFunc {
 
 func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var resultParsedJSON models.Metrics
+
 		if r.Header.Get("Content-Type") != "application/json" {
 			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 
-		resultParsedJSON := models.Metrics{}
 		dec := json.NewDecoder(r.Body)
 
 		if err := dec.Decode(&resultParsedJSON); err != nil {
@@ -174,13 +175,14 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 
 func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var resultParsedJSON models.Metrics
+
 		if r.Header.Get("Content-Type") != "application/json" {
 			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 
-		resultParsedJSON := models.Metrics{}
 		dec := json.NewDecoder(r.Body)
 
 		if err := dec.Decode(&resultParsedJSON); err != nil {
@@ -247,7 +249,7 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string, restore bool) {
 
 	if err := logging.Setup(loglevel); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	m := &storage.MemStorage{}
