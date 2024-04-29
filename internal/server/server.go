@@ -6,7 +6,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -243,11 +246,13 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 		if err := m.SaveToFile(fname); err != nil {
 			log.Println(err)
 		}
+		if duration == 0 {
+			break
+		}
 	}
 }
 
-func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string, restore bool) {
-
+func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string, restore bool, sigs chan os.Signal) {
 	if err := logging.Setup(loglevel); err != nil {
 		log.Fatal(err)
 	}
@@ -261,8 +266,25 @@ func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string,
 		}
 	}
 
-	go saveToFile(m, fileStoragePath, storeInterval)
+	//save result on shutdown and throw signal
+	go func() {
+		sig := <-sigs
+		fmt.Println("saving")
+		saveToFile(m, fileStoragePath, 0)
+        fmt.Println(sig)
+		signal.Reset(syscall.SIGINT, syscall.SIGTERM)
+		pid := os.Getpid()
+		p, err := os.FindProcess(pid)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := p.Signal(sig); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
+	go saveToFile(m, fileStoragePath, storeInterval)
+	
 	logging.Log.Info("Starting server on", zap.String("address", serverAddr))
 	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(serverAddr, chiRouter(m))))
 }
