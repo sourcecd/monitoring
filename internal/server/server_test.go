@@ -160,7 +160,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "no value of gauge metric\n",
+				response:    "no value of gauge metric",
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "gauge"}`,
 			},
@@ -170,7 +170,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "no value of counter metric\n",
+				response:    "no value of counter metric",
 				request:     "/update/",
 				requestBody: `{"id": "testcounter2", "type": "counter"}`,
 			},
@@ -180,7 +180,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "bad metric type\n",
+				response:    "bad metric type",
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "qwe", "value": 0.1}`,
 			},
@@ -230,11 +230,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			body, err = io.ReadAll(gzr)
 			require.NoError(t, err)
 
-			if v.want.statusCode == http.StatusOK {
-				require.JSONEq(t, v.want.response, string(body))
-			} else {
-				require.Equal(t, v.want.response, string(body))
-			}
+			require.Equal(t, v.want.response, strings.Trim(string(body), "\n"))
 		})
 	}
 }
