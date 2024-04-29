@@ -37,6 +37,7 @@ func Setup(level string) error {
 	if err != nil {
 		return err
 	}
+	// you can select a development logger zap.NewDevelopmentConfig()
 	cfg := zap.NewProductionConfig()
 	cfg.Level = lvl
 	zl, err := cfg.Build()
