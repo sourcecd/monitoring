@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -25,15 +26,17 @@ func servEnv() {
 	}
 	if r != "" {
 		i, err := strconv.Atoi(r)
-		if err == nil {
-			reportInterval = i
+		if err != nil {
+			log.Fatal(err)
 		}
+		reportInterval = i
 	}
 	if p != "" {
 		i, err := strconv.Atoi(p)
-		if err == nil {
-			pollInterval = i
+		if err != nil {
+			log.Fatal(err)
 		}
+		pollInterval = i
 	}
 }
 

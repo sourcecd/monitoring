@@ -1,21 +1,29 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"reflect"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
+	"github.com/sourcecd/monitoring/internal/models"
 )
 
-type SysMon struct {
-	PollCount   metrictypes.Counter
-	RandomValue metrictypes.Gauge
+type sysMon struct {
+	pollCount   metrictypes.Counter
+	randomValue metrictypes.Gauge
+}
+
+type sysMetricsJSON struct {
+	metricRandJ string
+	metricPollCountJ string
 }
 
 func rtMonitorSensGauge() []string {
@@ -50,21 +58,50 @@ func rtMonitorSensGauge() []string {
 	}
 }
 
-func parsedSysMetricsURL(serverHost string, randVal metrictypes.Gauge, pollCount metrictypes.Counter) []string {
-	return []string{
-		fmt.Sprintf("%s/update/gauge/RandomValue/%f", serverHost, randVal),
-		fmt.Sprintf("%s/update/counter/PollCount/%d", serverHost, pollCount),
+func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
+	resp, err := r.SetBody(send).Post(serverHost + "/update/")
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("%d", resp.StatusCode())
+	}
+	return resp, err
+}
+
+func parsedSysMetricsURL(randVal metrictypes.Gauge, pollCount metrictypes.Counter) *sysMetricsJSON {
+	metricRand := models.Metrics{
+		ID:    "RandomValue",
+		MType: metrictypes.GaugeType,
+		Value: (*float64)(&randVal),
+	}
+	metricPollCount := models.Metrics{
+		ID:    "PollCount",
+		MType: metrictypes.CounterType,
+		Delta: (*int64)(&pollCount),
+	}
+	metricRandJ, _ := json.Marshal(&metricRand)
+	metricPollCountJ, _ := json.Marshal(&metricPollCount)
+	return &sysMetricsJSON{
+		metricRandJ: string(metricRandJ),
+		metricPollCountJ: string(metricPollCountJ),
 	}
 }
 
-func parsedRtMetricURL(serverHost, metricName string, val reflect.Value) string {
-	return fmt.Sprintf("%s/update/gauge/%s/%v", serverHost, metricName, val)
+func parsedRtMetricURL(metricName string, val float64) string {
+	jRes, _ := json.Marshal(
+		&models.Metrics{
+			ID:    metricName,
+			MType: metrictypes.GaugeType,
+			Value: &val,
+		})
+	return string(jRes)
 }
 
-func updateMetrics(memstat *runtime.MemStats, sysmetrics *SysMon) {
+func updateMetrics(memstat *runtime.MemStats, sysmetrics *sysMon) {
 	runtime.ReadMemStats(memstat)
-	sysmetrics.PollCount += 1
-	sysmetrics.RandomValue = metrictypes.Gauge(rand.New(rand.NewSource(time.Now().UnixNano())).Float64())
+	sysmetrics.pollCount += 1
+	sysmetrics.randomValue = metrictypes.Gauge(rand.New(rand.NewSource(time.Now().UnixNano())).Float64())
 }
 
 func Run(serverAddr string, reportInterval, pollInterval int) {
@@ -72,10 +109,10 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 
 	m := rtMonitorSensGauge()
 	rtm := &runtime.MemStats{}
-	sysMetrics := &SysMon{}
+	sysMetrics := &sysMon{}
 
 	client := resty.New()
-	r := client.R().SetHeader("Content-Type", "text/plain")
+	r := client.R().SetHeader("Content-Type", "application/json")
 
 	if reportInterval <= 0 || pollInterval <= 0 {
 		log.Fatal("wrong intervals")
@@ -94,31 +131,33 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 		rtmVal := reflect.ValueOf(rtm).Elem()
 		for i := 0; i < len(m); i++ {
 			v := rtmVal.FieldByName(m[i])
-			// resty framework automaticaly close Body
-			resp, err := r.Post(parsedRtMetricURL(serverHost, m[i], v))
+			fl64, err := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
-			if resp.StatusCode() != http.StatusOK {
-				log.Printf("status_code: %d", resp.StatusCode())
+			// resty framework automaticaly close Body
+			// resty automatical send Accept-Encoding: gzip (can see it in server log)
+			_, err = send(r, parsedRtMetricURL(m[i], fl64), serverHost)
+			if err != nil {
+				log.Println(err)
 				continue
 			}
 		}
 
-		sysM := parsedSysMetricsURL(serverHost, sysMetrics.RandomValue, sysMetrics.PollCount)
-		for _, s := range sysM {
-			// resty framework automaticaly close Body
-			resp, err := r.Post(s)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-			if resp.StatusCode() != http.StatusOK {
-				log.Printf("status_code: %d", resp.StatusCode())
-				continue
-			}
+		sysM := parsedSysMetricsURL(sysMetrics.randomValue, sysMetrics.pollCount)
+		// resty framework automaticaly close Body
+		// resty automatical send Accept-Encoding: gzip (can see it in server log)
+		_, err := send(r, sysM.metricPollCountJ, serverHost)
+		if err != nil {
+			log.Println(err)
+			continue
 		}
-		sysMetrics.PollCount = 0
+		_, err = send(r, sysM.metricRandJ, serverHost)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		sysMetrics.pollCount = 0
 	}
 }
