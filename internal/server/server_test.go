@@ -205,6 +205,36 @@ func TestUpdateHandlerJSON(t *testing.T) {
 				requestBody: `{"id": "testGauge", "type": "gauge"}`,
 			},
 		},
+		{
+			name: "test-get-fault1",
+			want: want{
+				method:      http.MethodPost,
+				statusCode:  404,
+				response:    "no value",
+				request:     "/value/",
+				requestBody: `{"id": "testGaugeNone", "type": "gauge"}`,
+			},
+		},
+		{
+			name: "test-get-fault2",
+			want: want{
+				method:      http.MethodPost,
+				statusCode:  404,
+				response:    "no value",
+				request:     "/value/",
+				requestBody: `{"id": "testGaugeNone", "type": "counter"}`,
+			},
+		},
+		{
+			name: "test-get-fault-metric-name",
+			want: want{
+				method:      http.MethodPost,
+				statusCode:  404,
+				response:    "bad metric type",
+				request:     "/value/",
+				requestBody: `{"id": "testGaugeNone", "type": "unk"}`,
+			},
+		},
 	}
 
 	//json api

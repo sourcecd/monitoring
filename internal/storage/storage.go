@@ -18,6 +18,7 @@ type StoreMetrics interface {
 	GetGauge(name string) (metrictypes.Gauge, error)
 	GetCounter(name string) (metrictypes.Counter, error)
 	GetAllMetricsTxt() string
+	GetMetric(mType, name string) (interface{}, error)
 }
 
 // inmemory
@@ -47,6 +48,25 @@ func (m *MemStorage) GetGauge(name string) (metrictypes.Gauge, error) {
 	}
 	return metrictypes.Gauge(0), errors.New("no gauge value")
 }
+
+// test method (from mentor issue iter9)
+func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
+	m.mx.RLock()
+	defer m.mx.RUnlock()
+	if mType == metrictypes.GaugeType {
+		if v, ok := m.gauge[name]; ok {
+			return v, nil
+		}
+	} else if mType == metrictypes.CounterType {
+		if v, ok := m.counter[name]; ok {
+			return v, nil
+		}
+	} else {
+		return nil, errors.New("bad metric type")
+	}
+	return nil, errors.New("no value")
+}
+
 func (m *MemStorage) GetCounter(name string) (metrictypes.Counter, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()

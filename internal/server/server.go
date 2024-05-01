@@ -194,33 +194,23 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 		}
 		enc := json.NewEncoder(w)
 
-		switch resultParsedJSON.MType {
-		case metrictypes.GaugeType:
-			res, err := storage.GetGauge(resultParsedJSON.ID)
-			if err != nil {
-				http.Error(w, "gauge metric not found", http.StatusNotFound)
-				return
-			}
-			resultParsedJSON.Value = (*float64)(&res)
-			w.WriteHeader(http.StatusOK)
-			if err := enc.Encode(&resultParsedJSON); err != nil {
-				http.Error(w, "can't create gauge json", http.StatusInternalServerError)
-				return
-			}
-		case metrictypes.CounterType:
-			res, err := storage.GetCounter(resultParsedJSON.ID)
-			if err != nil {
-				http.Error(w, "counter metric not found", http.StatusNotFound)
-				return
-			}
-			resultParsedJSON.Delta = (*int64)(&res)
-			w.WriteHeader(http.StatusOK)
-			if err := enc.Encode(&resultParsedJSON); err != nil {
-				http.Error(w, "can't create counter json", http.StatusInternalServerError)
-				return
-			}
-		default:
-			http.Error(w, "bad metric type", http.StatusBadRequest)
+		// use test method (from mentor issue iter9)
+		res, err := storage.GetMetric(resultParsedJSON.MType, resultParsedJSON.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if g, ok := res.(metrictypes.Gauge); ok {
+			resultParsedJSON.Value = (*float64)(&g)
+		} else if c, ok := res.(metrictypes.Counter); ok {
+			resultParsedJSON.Delta = (*int64)(&c)
+		} else {
+			http.Error(w, "bad metric type", http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		if err := enc.Encode(&resultParsedJSON); err != nil {
+			http.Error(w, "can't encode json", http.StatusInternalServerError)
 			return
 		}
 	}
