@@ -216,7 +216,20 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func chiRouter(storage storage.StoreMetrics) chi.Router {
+func dbPing(storage storage.StoreMetrics) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		if err := storage.Ping(ctx); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK\n"))
+	}
+}
+
+// temproraly add pgdb TODO - remove old memstore
+func chiRouter(storage, pgdb storage.StoreMetrics) chi.Router {
 	r := chi.NewRouter()
 
 	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(updateMetrics(storage))))
@@ -226,6 +239,9 @@ func chiRouter(storage storage.StoreMetrics) chi.Router {
 	//json
 	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(updateMetricsJSON(storage))))
 	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(getMetricsJSON(storage))))
+
+	//ping db
+	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(dbPing(pgdb))))
 
 	return r
 }
@@ -242,13 +258,19 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 	}
 }
 
-func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string, restore bool, sigs chan os.Signal) {
+func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string, restore bool, sigs chan os.Signal, databaseDsn string) {
 	if err := logging.Setup(loglevel); err != nil {
 		log.Fatal(err)
 	}
 
 	m := &storage.MemStorage{}
 	m.Setup()
+
+	//PGDB new
+	pgdb, err := storage.NewPgDb(databaseDsn)
+	if err != nil {
+		panic(err)
+	}
 
 	if restore {
 		if err := m.ReadFromFile(fileStoragePath); err != nil {
@@ -261,7 +283,7 @@ func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string,
 		sig := <-sigs
 		fmt.Println("saving")
 		saveToFile(m, fileStoragePath, 0)
-        fmt.Println(sig)
+		fmt.Println(sig)
 		signal.Reset(syscall.SIGINT, syscall.SIGTERM)
 		pid := os.Getpid()
 		p, err := os.FindProcess(pid)
@@ -274,7 +296,8 @@ func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string,
 	}()
 
 	go saveToFile(m, fileStoragePath, storeInterval)
-	
+
 	logging.Log.Info("Starting server on", zap.String("address", serverAddr))
-	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(serverAddr, chiRouter(m))))
+	// TODO remove double storage
+	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(serverAddr, chiRouter(m, pgdb))))
 }

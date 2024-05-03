@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ type StoreMetrics interface {
 	GetCounter(name string) (metrictypes.Counter, error)
 	GetAllMetricsTxt() string
 	GetMetric(mType, name string) (interface{}, error)
+	Ping(ctx context.Context) error
 }
 
 // inmemory
@@ -26,6 +28,11 @@ type MemStorage struct {
 	mx      sync.RWMutex
 	gauge   map[string]metrictypes.Gauge
 	counter map[string]metrictypes.Counter
+}
+
+// TODO remove
+func (m *MemStorage) Ping(ctx context.Context) error {
+	return nil
 }
 
 func (m *MemStorage) WriteGauge(name string, value metrictypes.Gauge) error {

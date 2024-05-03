@@ -13,6 +13,7 @@ var loglevel string
 var storeInterval int
 var fileStoragePath string
 var restore bool
+var databaseDsn string
 
 func servEnv() {
 	s := os.Getenv("ADDRESS")
@@ -20,6 +21,7 @@ func servEnv() {
 	i := os.Getenv("STORE_INTERVAL")
 	f := os.Getenv("FILE_STORAGE_PATH")
 	r := os.Getenv("RESTORE")
+	d := os.Getenv("DATABASE_DSN")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
@@ -46,6 +48,9 @@ func servEnv() {
 		}
 		restore = b
 	}
+	if d != "" {
+		databaseDsn = d
+	}
 }
 
 func servFlags() {
@@ -54,5 +59,6 @@ func servFlags() {
 	flag.IntVar(&storeInterval, "i", 300, "metric store interval")
 	flag.StringVar(&fileStoragePath, "f", "/tmp/metrics-db.json", "file storage path")
 	flag.BoolVar(&restore, "r", true, "restore metric data")
+	flag.StringVar(&databaseDsn, "d", "localhost", "pg db connect address")
 	flag.Parse()
 }

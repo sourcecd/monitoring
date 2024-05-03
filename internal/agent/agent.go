@@ -22,7 +22,7 @@ type sysMon struct {
 }
 
 type sysMetricsJSON struct {
-	metricRandJ string
+	metricRandJ      string
 	metricPollCountJ string
 }
 
@@ -83,7 +83,7 @@ func parsedSysMetricsURL(randVal metrictypes.Gauge, pollCount metrictypes.Counte
 	metricRandJ, _ := json.Marshal(&metricRand)
 	metricPollCountJ, _ := json.Marshal(&metricPollCount)
 	return &sysMetricsJSON{
-		metricRandJ: string(metricRandJ),
+		metricRandJ:      string(metricRandJ),
 		metricPollCountJ: string(metricPollCountJ),
 	}
 }

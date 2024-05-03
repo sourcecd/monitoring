@@ -11,9 +11,9 @@ import (
 func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	servFlags()
 	servEnv()
 
-	server.Run(serverAddr, loglevel, storeInterval, fileStoragePath, restore, sigs)
+	server.Run(serverAddr, loglevel, storeInterval, fileStoragePath, restore, sigs, databaseDsn)
 }

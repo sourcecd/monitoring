@@ -22,7 +22,7 @@ func TestMetricsAgent(t *testing.T) {
 	testPollCount := metrictypes.Counter(5)
 	testRtFiledName := "Alloc"
 	expSysMetricURLs := &sysMetricsJSON{
-		metricRandJ: `{"id":"RandomValue","type":"gauge","value":0.123}`,
+		metricRandJ:      `{"id":"RandomValue","type":"gauge","value":0.123}`,
 		metricPollCountJ: `{"id":"PollCount","type":"counter","delta":5}`,
 	}
 	expRtMetricURL := `{"id":"Alloc","type":"gauge","value":0}`

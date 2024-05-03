@@ -25,7 +25,8 @@ func TestUpdateHandler(t *testing.T) {
 	testStorage := &storage.MemStorage{}
 	testStorage.Setup()
 
-	ts := httptest.NewServer(chiRouter(testStorage))
+	//remove duplication testStorage
+	ts := httptest.NewServer(chiRouter(testStorage, testStorage))
 	defer ts.Close()
 
 	testCase := []struct {
@@ -127,7 +128,8 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	testStorage := &storage.MemStorage{}
 	testStorage.Setup()
 
-	ts := httptest.NewServer(chiRouter(testStorage))
+	//remove duplication testStorage
+	ts := httptest.NewServer(chiRouter(testStorage, testStorage))
 	defer ts.Close()
 
 	//json api
