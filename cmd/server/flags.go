@@ -59,6 +59,6 @@ func servFlags() {
 	flag.IntVar(&storeInterval, "i", 300, "metric store interval")
 	flag.StringVar(&fileStoragePath, "f", "/tmp/metrics-db.json", "file storage path")
 	flag.BoolVar(&restore, "r", true, "restore metric data")
-	flag.StringVar(&databaseDsn, "d", "localhost", "pg db connect address")
+	flag.StringVar(&databaseDsn, "d", "host=localhost", "pg db connect address")
 	flag.Parse()
 }

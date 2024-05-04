@@ -267,7 +267,7 @@ func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string,
 	m.Setup()
 
 	//PGDB new
-	pgdb, err := storage.NewPgDb(databaseDsn)
+	pgdb, err := storage.NewPgDB(databaseDsn)
 	if err != nil {
 		panic(err)
 	}
