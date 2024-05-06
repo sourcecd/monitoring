@@ -2,7 +2,6 @@ package storage
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,9 +17,9 @@ type StoreMetrics interface {
 	WriteCounter(name string, value metrictypes.Counter) error
 	GetGauge(name string) (metrictypes.Gauge, error)
 	GetCounter(name string) (metrictypes.Counter, error)
-	GetAllMetricsTxt() string
+	GetAllMetricsTxt() (string, error)
 	GetMetric(mType, name string) (interface{}, error)
-	Ping(ctx context.Context) error
+	Ping() error
 }
 
 // inmemory
@@ -31,7 +30,7 @@ type MemStorage struct {
 }
 
 // TODO remove
-func (m *MemStorage) Ping(ctx context.Context) error {
+func (m *MemStorage) Ping() error {
 	return nil
 }
 
@@ -82,7 +81,7 @@ func (m *MemStorage) GetCounter(name string) (metrictypes.Counter, error) {
 	}
 	return metrictypes.Counter(0), errors.New("no counter value")
 }
-func (m *MemStorage) GetAllMetricsTxt() string {
+func (m *MemStorage) GetAllMetricsTxt() (string, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
 	s := "---Counters---\n"
@@ -93,7 +92,7 @@ func (m *MemStorage) GetAllMetricsTxt() string {
 	for k, v := range m.gauge {
 		s += fmt.Sprintf("%v: %v\n", k, v)
 	}
-	return s
+	return s, nil
 }
 
 func (m *MemStorage) SaveToFile(fname string) error {
@@ -161,9 +160,6 @@ func (m *MemStorage) ReadFromFile(fname string) error {
 	return nil
 }
 
-func (m *MemStorage) Setup() *MemStorage {
-	m.gauge = make(map[string]metrictypes.Gauge)
-	m.counter = make(map[string]metrictypes.Counter)
-
-	return m
+func NewMemStorage() *MemStorage {
+	return &MemStorage{gauge: make(map[string]metrictypes.Gauge), counter: make(map[string]metrictypes.Counter)}
 }

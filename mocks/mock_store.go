@@ -5,7 +5,6 @@
 package mocks
 
 import (
-	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -36,11 +35,12 @@ func (m *MockStoreMetrics) EXPECT() *MockStoreMetricsMockRecorder {
 }
 
 // GetAllMetricsTxt mocks base method.
-func (m *MockStoreMetrics) GetAllMetricsTxt() string {
+func (m *MockStoreMetrics) GetAllMetricsTxt() (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllMetricsTxt")
 	ret0, _ := ret[0].(string)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // GetAllMetricsTxt indicates an expected call of GetAllMetricsTxt.
@@ -95,17 +95,17 @@ func (mr *MockStoreMetricsMockRecorder) GetMetric(arg0, arg1 interface{}) *gomoc
 }
 
 // Ping mocks base method.
-func (m *MockStoreMetrics) Ping(arg0 context.Context) error {
+func (m *MockStoreMetrics) Ping() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Ping", arg0)
+	ret := m.ctrl.Call(m, "Ping")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Ping indicates an expected call of Ping.
-func (mr *MockStoreMetricsMockRecorder) Ping(arg0 interface{}) *gomock.Call {
+func (mr *MockStoreMetricsMockRecorder) Ping() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStoreMetrics)(nil).Ping), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStoreMetrics)(nil).Ping))
 }
 
 // WriteCounter mocks base method.

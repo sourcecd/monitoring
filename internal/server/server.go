@@ -117,8 +117,13 @@ func getAll(storage storage.StoreMetrics) http.HandlerFunc {
   </pre>
   </body>
 </html>`
+		res, err := storage.GetAllMetricsTxt()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, fmt.Sprintf(htmlBasic, storage.GetAllMetricsTxt()))
+		_, _ = io.WriteString(w, fmt.Sprintf(htmlBasic, res))
 	}
 }
 
@@ -147,6 +152,7 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 				return
 			}
 			if err := storage.WriteGauge(resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
+				log.Println(err)
 				http.Error(w, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
@@ -161,6 +167,7 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 				return
 			}
 			if err := storage.WriteCounter(resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
+				log.Println(err)
 				http.Error(w, "can't store counter metric", http.StatusInternalServerError)
 				return
 			}
@@ -218,8 +225,7 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 
 func dbPing(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		if err := storage.Ping(ctx); err != nil {
+		if err := storage.Ping(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -228,8 +234,7 @@ func dbPing(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-// temproraly add pgdb TODO - remove old memstore
-func chiRouter(storage, pgdb storage.StoreMetrics) chi.Router {
+func chiRouter(storage storage.StoreMetrics) chi.Router {
 	r := chi.NewRouter()
 
 	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(updateMetrics(storage))))
@@ -240,8 +245,8 @@ func chiRouter(storage, pgdb storage.StoreMetrics) chi.Router {
 	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(updateMetricsJSON(storage))))
 	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(getMetricsJSON(storage))))
 
-	//ping db
-	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(dbPing(pgdb))))
+	//ping
+	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(dbPing(storage))))
 
 	return r
 }
@@ -263,41 +268,56 @@ func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string,
 		log.Fatal(err)
 	}
 
-	m := &storage.MemStorage{}
-	m.Setup()
+	var store storage.StoreMetrics
 
-	//PGDB new
-	pgdb, err := storage.NewPgDB(databaseDsn)
-	if err != nil {
-		panic(err)
-	}
-
-	if restore {
-		if err := m.ReadFromFile(fileStoragePath); err != nil {
-			log.Println(err)
-		}
-	}
-
-	//save result on shutdown and throw signal
-	go func() {
-		sig := <-sigs
-		fmt.Println("saving")
-		saveToFile(m, fileStoragePath, 0)
-		fmt.Println(sig)
+	if databaseDsn != "" {
 		signal.Reset(syscall.SIGINT, syscall.SIGTERM)
-		pid := os.Getpid()
-		p, err := os.FindProcess(pid)
+		//PGDB new
+		pgdb, err := storage.NewPgDB(databaseDsn)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := p.Signal(sig); err != nil {
+		defer pgdb.CloseDB()
+
+		//main context timeout (default 60 sec)
+		pgdb.SetTimeout(1 * time.Second)
+
+		if err := pgdb.PopulateDB(); err != nil {
 			log.Fatal(err)
 		}
-	}()
 
-	go saveToFile(m, fileStoragePath, storeInterval)
+		store = pgdb
+	} else {
+		m := storage.NewMemStorage()
+
+		if restore {
+			if err := m.ReadFromFile(fileStoragePath); err != nil {
+				log.Println(err)
+			}
+		}
+
+		//save result on shutdown and throw signal
+		go func() {
+			sig := <-sigs
+			fmt.Println("saving")
+			saveToFile(m, fileStoragePath, 0)
+			fmt.Println(sig)
+			signal.Reset(syscall.SIGINT, syscall.SIGTERM)
+			pid := os.Getpid()
+			p, err := os.FindProcess(pid)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if err := p.Signal(sig); err != nil {
+				log.Fatal(err)
+			}
+		}()
+
+		go saveToFile(m, fileStoragePath, storeInterval)
+
+		store = m
+	}
 
 	logging.Log.Info("Starting server on", zap.String("address", serverAddr))
-	// TODO remove double storage
-	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(serverAddr, chiRouter(m, pgdb))))
+	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(serverAddr, chiRouter(store))))
 }

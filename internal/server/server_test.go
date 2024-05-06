@@ -25,11 +25,9 @@ func TestUpdateHandler(t *testing.T) {
 		request    string
 	}
 
-	testStorage := &storage.MemStorage{}
-	testStorage.Setup()
+	testStorage := storage.NewMemStorage()
 
-	//remove duplication testStorage
-	ts := httptest.NewServer(chiRouter(testStorage, testStorage))
+	ts := httptest.NewServer(chiRouter(testStorage))
 	defer ts.Close()
 
 	testCase := []struct {
@@ -128,11 +126,9 @@ func TestUpdateHandlerJSON(t *testing.T) {
 		requestBody string
 	}
 
-	testStorage := &storage.MemStorage{}
-	testStorage.Setup()
+	testStorage := storage.NewMemStorage()
 
-	//remove duplication testStorage
-	ts := httptest.NewServer(chiRouter(testStorage, testStorage))
+	ts := httptest.NewServer(chiRouter(testStorage))
 	defer ts.Close()
 
 	//json api
@@ -276,13 +272,12 @@ func TestPgDB(t *testing.T) {
 
 	mDB := mocks.NewMockStoreMetrics(ctrl)
 
-	//remove dup, when all methods for db will be implemented
-	ts := httptest.NewServer(chiRouter(mDB, mDB))
+	ts := httptest.NewServer(chiRouter(mDB))
 	defer ts.Close()
 
 	gomock.InOrder(
-		mDB.EXPECT().Ping(gomock.Any()).Return(nil),
-		mDB.EXPECT().Ping(gomock.Any()).Return(errors.New("Connection refused")),
+		mDB.EXPECT().Ping().Return(nil),
+		mDB.EXPECT().Ping().Return(errors.New("Connection refused")),
 	)
 	testPingCases := []struct {
 		name          string
