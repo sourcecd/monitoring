@@ -13,10 +13,7 @@ import (
 )
 
 type StoreMetrics interface {
-	WriteGauge(name string, value metrictypes.Gauge) error
-	WriteCounter(name string, value metrictypes.Counter) error
-	GetGauge(name string) (metrictypes.Gauge, error)
-	GetCounter(name string) (metrictypes.Counter, error)
+	WriteMetric(mType, name string, val interface{}) error
 	GetAllMetricsTxt() (string, error)
 	GetMetric(mType, name string) (interface{}, error)
 	Ping() error
@@ -34,28 +31,24 @@ func (m *MemStorage) Ping() error {
 	return nil
 }
 
-func (m *MemStorage) WriteGauge(name string, value metrictypes.Gauge) error {
+func (m *MemStorage) WriteMetric(mtype, name string, val interface{}) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	m.gauge[name] = value
-	return nil
-}
-func (m *MemStorage) WriteCounter(name string, value metrictypes.Counter) error {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	m.counter[name] += value
-	return nil
-}
-func (m *MemStorage) GetGauge(name string) (metrictypes.Gauge, error) {
-	m.mx.RLock()
-	defer m.mx.RUnlock()
-	if v, ok := m.gauge[name]; ok {
-		return v, nil
+	if mtype == metrictypes.GaugeType {
+		if metric, ok := val.(metrictypes.Gauge); ok {
+			m.gauge[name] = metric
+			return nil
+		}
+		return errors.New("wrong metric value type")
+	} else if mtype == metrictypes.CounterType {
+		if metric, ok := val.(metrictypes.Counter); ok {
+			m.counter[name] += metric
+			return nil
+		}
+		return errors.New("wrong metric value type")
 	}
-	return metrictypes.Gauge(0), errors.New("no gauge value")
+	return errors.New("wrong metric type")
 }
-
-// test method (from mentor issue iter9)
 func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
@@ -71,15 +64,6 @@ func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
 		return nil, errors.New("bad metric type")
 	}
 	return nil, errors.New("no value")
-}
-
-func (m *MemStorage) GetCounter(name string) (metrictypes.Counter, error) {
-	m.mx.RLock()
-	defer m.mx.RUnlock()
-	if v, ok := m.counter[name]; ok {
-		return v, nil
-	}
-	return metrictypes.Counter(0), errors.New("no counter value")
 }
 func (m *MemStorage) GetAllMetricsTxt() (string, error) {
 	m.mx.RLock()

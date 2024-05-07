@@ -8,7 +8,6 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	metrictypes "github.com/sourcecd/monitoring/internal/metrictypes"
 )
 
 // MockStoreMetrics is a mock of StoreMetrics interface.
@@ -49,36 +48,6 @@ func (mr *MockStoreMetricsMockRecorder) GetAllMetricsTxt() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllMetricsTxt", reflect.TypeOf((*MockStoreMetrics)(nil).GetAllMetricsTxt))
 }
 
-// GetCounter mocks base method.
-func (m *MockStoreMetrics) GetCounter(arg0 string) (metrictypes.Counter, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCounter", arg0)
-	ret0, _ := ret[0].(metrictypes.Counter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetCounter indicates an expected call of GetCounter.
-func (mr *MockStoreMetricsMockRecorder) GetCounter(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCounter", reflect.TypeOf((*MockStoreMetrics)(nil).GetCounter), arg0)
-}
-
-// GetGauge mocks base method.
-func (m *MockStoreMetrics) GetGauge(arg0 string) (metrictypes.Gauge, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetGauge", arg0)
-	ret0, _ := ret[0].(metrictypes.Gauge)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetGauge indicates an expected call of GetGauge.
-func (mr *MockStoreMetricsMockRecorder) GetGauge(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGauge", reflect.TypeOf((*MockStoreMetrics)(nil).GetGauge), arg0)
-}
-
 // GetMetric mocks base method.
 func (m *MockStoreMetrics) GetMetric(arg0, arg1 string) (interface{}, error) {
 	m.ctrl.T.Helper()
@@ -108,30 +77,16 @@ func (mr *MockStoreMetricsMockRecorder) Ping() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStoreMetrics)(nil).Ping))
 }
 
-// WriteCounter mocks base method.
-func (m *MockStoreMetrics) WriteCounter(arg0 string, arg1 metrictypes.Counter) error {
+// WriteMetric mocks base method.
+func (m *MockStoreMetrics) WriteMetric(arg0, arg1 string, arg2 interface{}) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteCounter", arg0, arg1)
+	ret := m.ctrl.Call(m, "WriteMetric", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// WriteCounter indicates an expected call of WriteCounter.
-func (mr *MockStoreMetricsMockRecorder) WriteCounter(arg0, arg1 interface{}) *gomock.Call {
+// WriteMetric indicates an expected call of WriteMetric.
+func (mr *MockStoreMetricsMockRecorder) WriteMetric(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteCounter", reflect.TypeOf((*MockStoreMetrics)(nil).WriteCounter), arg0, arg1)
-}
-
-// WriteGauge mocks base method.
-func (m *MockStoreMetrics) WriteGauge(arg0 string, arg1 metrictypes.Gauge) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteGauge", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteGauge indicates an expected call of WriteGauge.
-func (mr *MockStoreMetricsMockRecorder) WriteGauge(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteGauge", reflect.TypeOf((*MockStoreMetrics)(nil).WriteGauge), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteMetric", reflect.TypeOf((*MockStoreMetrics)(nil).WriteMetric), arg0, arg1, arg2)
 }

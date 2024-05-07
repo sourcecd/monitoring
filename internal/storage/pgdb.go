@@ -45,44 +45,30 @@ func (p *PgDB) PopulateDB() error {
 	return nil
 }
 
-func (p *PgDB) WriteGauge(name string, value metrictypes.Gauge) error {
+func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
-	if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
-	values ($1, $2, $3) on conflict (id) do update set value = $3`, name, "gauge", value); err != nil {
-		return fmt.Errorf("write gauge to db failed: %s", err.Error())
+	if mtype == metrictypes.GaugeType {
+		if metric, ok := val.(metrictypes.Gauge); ok {
+			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
+			values ($1, $2, $3) on conflict (id) do update set value = $3`, name, "gauge", metric); err != nil {
+				return fmt.Errorf("write gauge to db failed: %s", err.Error())
+			}
+			return nil
+		}
+		return errors.New("wrong metric value type")
+	} else if mtype == metrictypes.CounterType {
+		if metric, ok := val.(metrictypes.Counter); ok {
+			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
+			values ($1, $2, $3) on conflict (id) 
+			do update set delta = $3 + (select delta from monitoring where id = $1)`, name, "counter", metric); err != nil {
+				return fmt.Errorf("write counter to db failed: %s", err.Error())
+			}
+			return nil
+		}
+		return errors.New("wrong metric value type")
 	}
-	return nil
-}
-func (p *PgDB) WriteCounter(name string, value metrictypes.Counter) error {
-	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
-	defer cancel()
-	if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
-	values ($1, $2, $3) on conflict (id) 
-	do update set delta = $3 + (select delta from monitoring where id = $1)`, name, "counter", value); err != nil {
-		return fmt.Errorf("write counter to db failed: %s", err.Error())
-	}
-	return nil
-}
-func (p *PgDB) GetGauge(name string) (metrictypes.Gauge, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
-	defer cancel()
-	var gauge float64
-	row := p.db.QueryRowContext(ctx, "select value from monitoring where id = $1", name)
-	if err := row.Scan(&gauge); err != nil {
-		return metrictypes.Gauge(0), fmt.Errorf("get gauge failed: %s", err.Error())
-	}
-	return metrictypes.Gauge(gauge), nil
-}
-func (p *PgDB) GetCounter(name string) (metrictypes.Counter, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
-	defer cancel()
-	var counter int64
-	row := p.db.QueryRowContext(ctx, "select delta from monitoring where id = $1", name)
-	if err := row.Scan(&counter); err != nil {
-		return metrictypes.Counter(0), fmt.Errorf("get counter failed: %s", err.Error())
-	}
-	return metrictypes.Counter(counter), nil
+	return errors.New("wrong metric type")
 }
 func (p *PgDB) GetAllMetricsTxt() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)

@@ -47,7 +47,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 				http.Error(resp, "can't parse gauge metric", http.StatusBadRequest)
 				return
 			}
-			if err := storage.WriteGauge(metric.metricName, metrictypes.Gauge(fl64)); err != nil {
+			if err := storage.WriteMetric(metric.metricType, metric.metricName, metrictypes.Gauge(fl64)); err != nil {
 				http.Error(resp, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
@@ -57,7 +57,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 				http.Error(resp, "can't parse counter metric", http.StatusBadRequest)
 				return
 			}
-			if err := storage.WriteCounter(metric.metricName, metrictypes.Counter(i64)); err != nil {
+			if err := storage.WriteMetric(metric.metricType, metric.metricName, metrictypes.Counter(i64)); err != nil {
 				http.Error(resp, "can't store counter metric", http.StatusInternalServerError)
 				return
 			}
@@ -79,7 +79,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 		mVal := chi.URLParam(req, "val")
 		switch mType {
 		case metrictypes.GaugeType:
-			val, err := storage.GetGauge(mVal)
+			val, err := storage.GetMetric(metrictypes.GaugeType, mVal)
 			if err != nil {
 				http.Error(resp, "gauge not found", http.StatusNotFound)
 				return
@@ -87,7 +87,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			resp.WriteHeader(http.StatusOK)
 			_, _ = io.WriteString(resp, fmt.Sprintf("%v\n", val))
 		case metrictypes.CounterType:
-			val, err := storage.GetCounter(mVal)
+			val, err := storage.GetMetric(metrictypes.CounterType, mVal)
 			if err != nil {
 				http.Error(resp, "counter not found", http.StatusNotFound)
 				return
@@ -145,39 +145,25 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 		}
 		enc := json.NewEncoder(w)
 
-		switch resultParsedJSON.MType {
-		case metrictypes.GaugeType:
-			if resultParsedJSON.Value == nil {
-				http.Error(w, "no value of gauge metric", http.StatusBadRequest)
-				return
-			}
-			if err := storage.WriteGauge(resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
+		if resultParsedJSON.MType == metrictypes.GaugeType && resultParsedJSON.Value != nil {
+			if err := storage.WriteMetric(resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
 				log.Println(err)
 				http.Error(w, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
-			w.WriteHeader(http.StatusOK)
-			if err := enc.Encode(&resultParsedJSON); err != nil {
-				http.Error(w, "can't create gauge json answer", http.StatusInternalServerError)
-				return
-			}
-		case metrictypes.CounterType:
-			if resultParsedJSON.Delta == nil {
-				http.Error(w, "no value of counter metric", http.StatusBadRequest)
-				return
-			}
-			if err := storage.WriteCounter(resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
+		} else if resultParsedJSON.MType == metrictypes.CounterType && resultParsedJSON.Delta != nil {
+			if err := storage.WriteMetric(resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
 				log.Println(err)
 				http.Error(w, "can't store counter metric", http.StatusInternalServerError)
 				return
 			}
-			w.WriteHeader(http.StatusOK)
-			if err := enc.Encode(&resultParsedJSON); err != nil {
-				http.Error(w, "can't create counter json answer", http.StatusInternalServerError)
-				return
-			}
-		default:
-			http.Error(w, "bad metric type", http.StatusBadRequest)
+		} else {
+			http.Error(w, "bad metric type or no metric value", http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		if err := enc.Encode(&resultParsedJSON); err != nil {
+			http.Error(w, "can't prepare json answer", http.StatusInternalServerError)
 			return
 		}
 	}
