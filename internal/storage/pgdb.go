@@ -12,10 +12,8 @@ import (
 	"github.com/sourcecd/monitoring/internal/models"
 )
 
-const (
-	checkExistsQuery = "select exists ( select from information_schema.tables where table_name = 'monitoring' )"
-	populateQuery    = "create table monitoring ( id varchar(64) PRIMARY KEY, mtype varchar(16), delta integer, value double precision )"
-)
+const populateQuery = `create table if not exists monitoring ( id varchar(64) PRIMARY KEY, 
+mtype varchar(16), delta bigint, value double precision )`
 
 type PgDB struct {
 	db      *sql.DB
@@ -33,15 +31,8 @@ func NewPgDB(dsn string) (*PgDB, error) {
 func (p *PgDB) PopulateDB() error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
-	var exists bool
-	row := p.db.QueryRowContext(ctx, checkExistsQuery)
-	if err := row.Scan(&exists); err != nil {
-		return fmt.Errorf("exists check failed: %s", err.Error())
-	}
-	if !exists {
-		if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
-			return fmt.Errorf("populate failed: %s", err.Error())
-		}
+	if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
+		return fmt.Errorf("populate failed: %s", err.Error())
 	}
 	return nil
 }
