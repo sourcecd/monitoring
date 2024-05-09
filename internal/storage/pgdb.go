@@ -19,9 +19,15 @@ import (
 const populateQuery = `create table if not exists monitoring ( id varchar(64) PRIMARY KEY, 
 mtype varchar(16), delta bigint, value double precision )`
 
+type backOff struct {
+	fiboDuration time.Duration
+	maxRetries   uint64
+}
+
 type PgDB struct {
 	db      *sql.DB
 	timeout time.Duration
+	backoff backOff
 }
 
 func NewPgDB(dsn string) (*PgDB, error) {
@@ -29,13 +35,13 @@ func NewPgDB(dsn string) (*PgDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &PgDB{db: db, timeout: 60 * time.Second}, nil
+	return &PgDB{db: db, timeout: 60 * time.Second, backoff: backOff{fiboDuration: 1 * time.Second, maxRetries: 3}}, nil
 }
 
 func (p *PgDB) PopulateDB() error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
-	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+	bf := retry.WithMaxRetries(p.backoff.maxRetries, retry.NewFibonacci(p.backoff.fiboDuration))
 
 	if err := retry.Do(ctx, bf, func(ctx context.Context) error {
 		if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
@@ -57,7 +63,7 @@ func (p *PgDB) PopulateDB() error {
 func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
-	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+	bf := retry.WithMaxRetries(p.backoff.maxRetries, retry.NewFibonacci(p.backoff.fiboDuration))
 
 	if mtype == metrictypes.GaugeType {
 		if metric, ok := val.(metrictypes.Gauge); ok {
@@ -93,7 +99,7 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
-	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+	bf := retry.WithMaxRetries(p.backoff.maxRetries, retry.NewFibonacci(p.backoff.fiboDuration))
 
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -131,7 +137,7 @@ func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 func (p *PgDB) GetAllMetricsTxt() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
-	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+	bf := retry.WithMaxRetries(p.backoff.maxRetries, retry.NewFibonacci(p.backoff.fiboDuration))
 
 	s := "---Counters---\n"
 	var id string
@@ -185,7 +191,7 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 func (p *PgDB) GetMetric(mType, name string) (interface{}, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
-	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+	bf := retry.WithMaxRetries(p.backoff.maxRetries, retry.NewFibonacci(p.backoff.fiboDuration))
 
 	var value float64
 	var delta int64
@@ -232,4 +238,8 @@ func (p *PgDB) CloseDB() error {
 }
 func (p *PgDB) SetTimeout(timeout time.Duration) {
 	p.timeout = timeout
+}
+func (p *PgDB) SetBackoff(fibotime time.Duration, maxretries uint64) {
+	p.backoff.fiboDuration = fibotime
+	p.backoff.maxRetries = maxretries
 }

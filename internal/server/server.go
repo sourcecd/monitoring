@@ -300,6 +300,7 @@ func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string,
 
 		//main context timeout (default 60 sec)
 		pgdb.SetTimeout(30 * time.Second)
+		pgdb.SetBackoff(1*time.Second, 3)
 
 		if err := pgdb.PopulateDB(); err != nil {
 			log.Fatal(err)
