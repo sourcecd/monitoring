@@ -209,6 +209,38 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
+func updateBatchMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var batchMettricsJSON []models.Metrics
+
+		if r.Header.Get("Content-Type") != "application/json" {
+			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		dec := json.NewDecoder(r.Body)
+
+		if err := dec.Decode(&batchMettricsJSON); err != nil {
+			http.Error(w, "error to pasrse json request", http.StatusBadRequest)
+			return
+		}
+		enc := json.NewEncoder(w)
+
+		if err := storage.WriteBatchMetrics(batchMettricsJSON); err != nil {
+			log.Println(err)
+			http.Error(w, "error to store batch metrics", http.StatusInternalServerError)
+			return
+		}
+		// check ref
+		w.WriteHeader(http.StatusOK)
+		if err := enc.Encode(batchMettricsJSON); err != nil {
+			http.Error(w, "can't encode json", http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
 func dbPing(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := storage.Ping(); err != nil {
@@ -230,6 +262,7 @@ func chiRouter(storage storage.StoreMetrics) chi.Router {
 	//json
 	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(updateMetricsJSON(storage))))
 	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(getMetricsJSON(storage))))
+	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(updateBatchMetricsJSON(storage))))
 
 	//ping
 	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(dbPing(storage))))

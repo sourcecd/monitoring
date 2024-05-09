@@ -14,6 +14,7 @@ import (
 
 type StoreMetrics interface {
 	WriteMetric(mType, name string, val interface{}) error
+	WriteBatchMetrics(metrics []models.Metrics) error
 	GetAllMetricsTxt() (string, error)
 	GetMetric(mType, name string) (interface{}, error)
 	Ping() error
@@ -48,6 +49,20 @@ func (m *MemStorage) WriteMetric(mtype, name string, val interface{}) error {
 		return errors.New("wrong metric value type")
 	}
 	return errors.New("wrong metric type")
+}
+func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	for _, v := range metrics {
+		if v.MType == metrictypes.GaugeType && v.Value != nil {
+			m.gauge[v.ID] = metrictypes.Gauge(*v.Value)
+		} else if v.MType == metrictypes.CounterType && v.Delta != nil {
+			m.counter[v.ID] = metrictypes.Counter(*v.Delta)
+		} else {
+			return errors.New("wrong metric type or nil value")
+		}
+	}
+	return nil
 }
 func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
 	m.mx.RLock()

@@ -9,6 +9,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
+	"github.com/sourcecd/monitoring/internal/models"
 )
 
 const (
@@ -69,6 +70,32 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 		return errors.New("wrong metric value type")
 	}
 	return errors.New("wrong metric type")
+}
+func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
+	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+	defer cancel()
+	tx, err := p.db.Begin()
+	if err != nil {
+		return fmt.Errorf("can't start tx to db: %s", err.Error())
+	}
+	defer tx.Rollback()
+	for _, v := range metrics {
+		if v.MType == metrictypes.GaugeType && v.Value != nil {
+			if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
+			values ($1, $2, $3) on conflict (id) do update set value = $3`, v.ID, v.MType, v.Value); err != nil {
+				return fmt.Errorf("write gauge to db failed: %s", err.Error())
+			}
+		} else if v.MType == metrictypes.CounterType && v.Delta != nil {
+			if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
+			values ($1, $2, $3) on conflict (id) 
+			do update set delta = $3 + (select delta from monitoring where id = $1)`, v.ID, v.MType, v.Delta); err != nil {
+				return fmt.Errorf("write counter to db failed: %s", err.Error())
+			}
+		} else {
+			return errors.New("wrong metric type or nil value")
+		}
+	}
+	return tx.Commit()
 }
 func (p *PgDB) GetAllMetricsTxt() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)

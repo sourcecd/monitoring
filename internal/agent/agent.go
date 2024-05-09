@@ -21,11 +21,6 @@ type sysMon struct {
 	randomValue metrictypes.Gauge
 }
 
-type sysMetricsJSON struct {
-	metricRandJ      string
-	metricPollCountJ string
-}
-
 func rtMonitorSensGauge() []string {
 	return []string{
 		"Alloc",
@@ -59,7 +54,7 @@ func rtMonitorSensGauge() []string {
 }
 
 func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
-	resp, err := r.SetBody(send).Post(serverHost + "/update/")
+	resp, err := r.SetBody(send).Post(serverHost + "/updates/")
 	if err != nil {
 		return nil, err
 	}
@@ -69,39 +64,15 @@ func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 	return resp, err
 }
 
-func parsedSysMetricsURL(randVal metrictypes.Gauge, pollCount metrictypes.Counter) *sysMetricsJSON {
-	metricRand := models.Metrics{
-		ID:    "RandomValue",
-		MType: metrictypes.GaugeType,
-		Value: (*float64)(&randVal),
-	}
-	metricPollCount := models.Metrics{
-		ID:    "PollCount",
-		MType: metrictypes.CounterType,
-		Delta: (*int64)(&pollCount),
-	}
-	metricRandJ, _ := json.Marshal(&metricRand)
-	metricPollCountJ, _ := json.Marshal(&metricPollCount)
-	return &sysMetricsJSON{
-		metricRandJ:      string(metricRandJ),
-		metricPollCountJ: string(metricPollCountJ),
-	}
-}
-
-func parsedRtMetricURL(metricName string, val float64) string {
-	jRes, _ := json.Marshal(
-		&models.Metrics{
-			ID:    metricName,
-			MType: metrictypes.GaugeType,
-			Value: &val,
-		})
-	return string(jRes)
-}
-
 func updateMetrics(memstat *runtime.MemStats, sysmetrics *sysMon) {
 	runtime.ReadMemStats(memstat)
 	sysmetrics.pollCount += 1
 	sysmetrics.randomValue = metrictypes.Gauge(rand.New(rand.NewSource(time.Now().UnixNano())).Float64())
+}
+
+func encodeJSON(metrics []models.Metrics) (string, error) {
+	jRes, err := json.Marshal(metrics)
+	return string(jRes), err
 }
 
 func Run(serverAddr string, reportInterval, pollInterval int) {
@@ -118,6 +89,7 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 		log.Fatal("wrong intervals")
 	}
 	for {
+		var batchMetrics []models.Metrics
 		timeStart := time.Now().Unix()
 		for {
 			updateMetrics(rtm, sysMetrics)
@@ -138,22 +110,33 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 			}
 			// resty framework automaticaly close Body
 			// resty automatical send Accept-Encoding: gzip (can see it in server log)
-			_, err = send(r, parsedRtMetricURL(m[i], fl64), serverHost)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
+			batchMetrics = append(batchMetrics, models.Metrics{
+				ID:    m[i],
+				MType: metrictypes.GaugeType,
+				Value: &fl64,
+			})
 		}
 
-		sysM := parsedSysMetricsURL(sysMetrics.randomValue, sysMetrics.pollCount)
-		// resty framework automaticaly close Body
-		// resty automatical send Accept-Encoding: gzip (can see it in server log)
-		_, err := send(r, sysM.metricPollCountJ, serverHost)
+		batchMetrics = append(batchMetrics,
+			models.Metrics{
+				ID:    "PollCount",
+				MType: metrictypes.CounterType,
+				Delta: (*int64)(&sysMetrics.pollCount),
+			},
+			models.Metrics{
+				ID:    "RandomValue",
+				MType: metrictypes.GaugeType,
+				Value: (*float64)(&sysMetrics.randomValue),
+			})
+
+		strToSend, err := encodeJSON(batchMetrics)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		_, err = send(r, sysM.metricRandJ, serverHost)
+		// resty framework automaticaly close Body
+		// resty automatical send Accept-Encoding: gzip (can see it in server log)
+		_, err = send(r, strToSend, serverHost)
 		if err != nil {
 			log.Println(err)
 			continue

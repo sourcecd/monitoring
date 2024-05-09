@@ -8,6 +8,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	models "github.com/sourcecd/monitoring/internal/models"
 )
 
 // MockStoreMetrics is a mock of StoreMetrics interface.
@@ -75,6 +76,20 @@ func (m *MockStoreMetrics) Ping() error {
 func (mr *MockStoreMetricsMockRecorder) Ping() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStoreMetrics)(nil).Ping))
+}
+
+// WriteBatchMetrics mocks base method.
+func (m *MockStoreMetrics) WriteBatchMetrics(arg0 []models.Metrics) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteBatchMetrics", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatchMetrics indicates an expected call of WriteBatchMetrics.
+func (mr *MockStoreMetricsMockRecorder) WriteBatchMetrics(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchMetrics", reflect.TypeOf((*MockStoreMetrics)(nil).WriteBatchMetrics), arg0)
 }
 
 // WriteMetric mocks base method.
