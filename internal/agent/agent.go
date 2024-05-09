@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -9,9 +11,11 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/sethvargo/go-retry"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
@@ -77,6 +81,7 @@ func encodeJSON(metrics []models.Metrics) (string, error) {
 
 func Run(serverAddr string, reportInterval, pollInterval int) {
 	serverHost := fmt.Sprintf("http://%s", serverAddr)
+	ctx := context.Background()
 
 	m := rtMonitorSensGauge()
 	rtm := &runtime.MemStats{}
@@ -136,7 +141,16 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 		}
 		// resty framework automaticaly close Body
 		// resty automatical send Accept-Encoding: gzip (can see it in server log)
-		_, err = send(r, strToSend, serverHost)
+		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+		err = retry.Do(ctx, backoff, func(ctx context.Context) error {
+			if _, err = send(r, strToSend, serverHost); err != nil {
+				if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNABORTED) || errors.Is(err, syscall.ECONNRESET) {
+					return retry.RetryableError(fmt.Errorf("retry done: %s", err.Error()))
+				}
+				return err
+			}
+			return nil
+		})
 		if err != nil {
 			log.Println(err)
 			continue

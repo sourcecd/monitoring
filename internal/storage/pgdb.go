@@ -5,9 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"syscall"
 	"time"
 
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/sethvargo/go-retry"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
@@ -31,8 +35,21 @@ func NewPgDB(dsn string) (*PgDB, error) {
 func (p *PgDB) PopulateDB() error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
-	if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
-		return fmt.Errorf("populate failed: %s", err.Error())
+	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+
+	if err := retry.Do(ctx, bf, func(ctx context.Context) error {
+		if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
+			popErr := fmt.Errorf("populate failed: %s", err.Error())
+			var pgErr *pgconn.PgError
+			if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNABORTED) ||
+				errors.Is(err, syscall.ECONNRESET) || (errors.As(err, &pgErr) && pgerrcode.IsConnectionException(pgErr.Code)) {
+				return retry.RetryableError(popErr)
+			}
+			return popErr
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	return nil
 }
@@ -40,23 +57,34 @@ func (p *PgDB) PopulateDB() error {
 func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
+	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+
 	if mtype == metrictypes.GaugeType {
 		if metric, ok := val.(metrictypes.Gauge); ok {
-			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
-			values ($1, $2, $3) on conflict (id) do update set value = $3`, name, "gauge", metric); err != nil {
-				return fmt.Errorf("write gauge to db failed: %s", err.Error())
+			if err := retry.Do(ctx, bf, func(ctx context.Context) error {
+				//idempotency
+				if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
+				values ($1, $2, $3) on conflict (id) do update set value = $3`, name, "gauge", metric); err != nil {
+					return retry.RetryableError(fmt.Errorf("write gauge to db failed: %s", err.Error()))
+				}
+				return nil
+			}); err != nil {
+				return err
 			}
-			return nil
 		}
 		return errors.New("wrong metric value type")
 	} else if mtype == metrictypes.CounterType {
 		if metric, ok := val.(metrictypes.Counter); ok {
-			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
-			values ($1, $2, $3) on conflict (id) 
-			do update set delta = $3 + (select delta from monitoring where id = $1)`, name, "counter", metric); err != nil {
-				return fmt.Errorf("write counter to db failed: %s", err.Error())
+			if err := retry.Do(ctx, bf, func(ctx context.Context) error {
+				if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
+				values ($1, $2, $3) on conflict (id) 
+				do update set delta = $3 + (select delta from monitoring where id = $1)`, name, "counter", metric); err != nil {
+					return retry.RetryableError(fmt.Errorf("write counter to db failed: %s", err.Error()))
+				}
+				return nil
+			}); err != nil {
+				return err
 			}
-			return nil
 		}
 		return errors.New("wrong metric value type")
 	}
@@ -65,6 +93,8 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
+	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+
 	tx, err := p.db.Begin()
 	if err != nil {
 		return fmt.Errorf("can't start tx to db: %s", err.Error())
@@ -72,15 +102,25 @@ func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 	defer tx.Rollback()
 	for _, v := range metrics {
 		if v.MType == metrictypes.GaugeType && v.Value != nil {
-			if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
-			values ($1, $2, $3) on conflict (id) do update set value = $3`, v.ID, v.MType, v.Value); err != nil {
-				return fmt.Errorf("write gauge to db failed: %s", err.Error())
+			if err := retry.Do(ctx, bf, func(ctx context.Context) error {
+				if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
+				values ($1, $2, $3) on conflict (id) do update set value = $3`, v.ID, v.MType, v.Value); err != nil {
+					return retry.RetryableError(fmt.Errorf("write gauge to db failed: %s", err.Error()))
+				}
+				return nil
+			}); err != nil {
+				return err
 			}
 		} else if v.MType == metrictypes.CounterType && v.Delta != nil {
-			if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
-			values ($1, $2, $3) on conflict (id) 
-			do update set delta = $3 + (select delta from monitoring where id = $1)`, v.ID, v.MType, v.Delta); err != nil {
-				return fmt.Errorf("write counter to db failed: %s", err.Error())
+			if err := retry.Do(ctx, bf, func(ctx context.Context) error {
+				if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
+				values ($1, $2, $3) on conflict (id) 
+				do update set delta = $3 + (select delta from monitoring where id = $1)`, v.ID, v.MType, v.Delta); err != nil {
+					return retry.RetryableError(fmt.Errorf("write counter to db failed: %s", err.Error()))
+				}
+				return nil
+			}); err != nil {
+				return err
 			}
 		} else {
 			return errors.New("wrong metric type or nil value")
@@ -91,12 +131,22 @@ func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 func (p *PgDB) GetAllMetricsTxt() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
+	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+
 	s := "---Counters---\n"
 	var id string
 	var delta int64
 	var value float64
-	rowsc, err := p.db.QueryContext(ctx, "select id, delta from monitoring where mtype = 'counter'")
-	if err != nil {
+	var rowsc, rowsg *sql.Rows
+	var err error
+
+	if err = retry.Do(ctx, bf, func(ctx context.Context) error {
+		rowsc, err = p.db.QueryContext(ctx, "select id, delta from monitoring where mtype = 'counter'")
+		if err != nil {
+			return retry.RetryableError(err)
+		}
+		return nil
+	}); err != nil {
 		return "", err
 	}
 	defer rowsc.Close()
@@ -107,11 +157,16 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 		s += fmt.Sprintf("%v: %v\n", id, delta)
 	}
 	if rowsc.Err() != nil {
-		return "", err
+		return "", rowsc.Err()
 	}
 	s += "---Gauge---\n"
-	rowsg, err := p.db.QueryContext(ctx, "select id, value from monitoring where mtype = 'gauge'")
-	if err != nil {
+	if err = retry.Do(ctx, bf, func(ctx context.Context) error {
+		rowsg, err = p.db.QueryContext(ctx, "select id, value from monitoring where mtype = 'gauge'")
+		if err != nil {
+			return retry.RetryableError(err)
+		}
+		return nil
+	}); err != nil {
 		return "", err
 	}
 	defer rowsg.Close()
@@ -122,7 +177,7 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 		s += fmt.Sprintf("%v: %v\n", id, value)
 	}
 	if rowsg.Err() != nil {
-		return "", err
+		return "", rowsc.Err()
 	}
 
 	return s, nil
@@ -130,23 +185,35 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 func (p *PgDB) GetMetric(mType, name string) (interface{}, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
+	bf := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+
 	var value float64
 	var delta int64
 	if mType == metrictypes.GaugeType {
-		row := p.db.QueryRowContext(ctx, "select value from monitoring where id = $1", name)
-		if err := row.Scan(&value); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, errors.New("no value")
+		if err := retry.Do(ctx, bf, func(ctx context.Context) error {
+			row := p.db.QueryRowContext(ctx, "select value from monitoring where id = $1", name)
+			if err := row.Scan(&value); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return errors.New("no value")
+				}
+				return retry.RetryableError(err)
 			}
+			return nil
+		}); err != nil {
 			return nil, err
 		}
 		return metrictypes.Gauge(value), nil
 	} else if mType == metrictypes.CounterType {
-		row := p.db.QueryRowContext(ctx, "select delta from monitoring where id = $1", name)
-		if err := row.Scan(&delta); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, errors.New("no value")
+		if err := retry.Do(ctx, bf, func(ctx context.Context) error {
+			row := p.db.QueryRowContext(ctx, "select delta from monitoring where id = $1", name)
+			if err := row.Scan(&delta); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return errors.New("no value")
+				}
+				return retry.RetryableError(err)
 			}
+			return nil
+		}); err != nil {
 			return nil, err
 		}
 		return metrictypes.Counter(delta), nil
