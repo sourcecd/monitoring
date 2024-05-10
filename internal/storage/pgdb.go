@@ -153,14 +153,15 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 		if err != nil {
 			return retry.RetryableError(err)
 		}
+		//static check lying
+		if err = rowsc.Err(); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = rowsc.Close()
-		_ = rowsc.Err()
-	}()
+	defer rowsc.Close()
 	for rowsc.Next() {
 		if err := rowsc.Scan(&id, &delta); err != nil {
 			return "", err
@@ -176,14 +177,15 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 		if err != nil {
 			return retry.RetryableError(err)
 		}
+		//static check lying
+		if err = rowsg.Err(); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = rowsg.Close()
-		_ = rowsg.Err()
-	}()
+	defer rowsg.Close()
 	for rowsg.Next() {
 		if err := rowsg.Scan(&id, &value); err != nil {
 			return "", err
