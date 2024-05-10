@@ -164,8 +164,8 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 		}
 		s += fmt.Sprintf("%v: %v\n", id, delta)
 	}
-	if rowsc.Err() != nil {
-		return "", rowsc.Err()
+	if err := rowsc.Err(); err != nil {
+		return "", err
 	}
 	s += "---Gauge---\n"
 	if err = retry.Do(ctx, bf, func(ctx context.Context) error {
@@ -184,8 +184,8 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 		}
 		s += fmt.Sprintf("%v: %v\n", id, value)
 	}
-	if rowsg.Err() != nil {
-		return "", rowsc.Err()
+	if err := rowsg.Err(); err != nil {
+		return "", err
 	}
 
 	return s, nil
