@@ -157,7 +157,10 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 	}); err != nil {
 		return "", err
 	}
-	defer rowsc.Close()
+	defer func() {
+		_ = rowsc.Close()
+		_ = rowsc.Err()
+	}()
 	for rowsc.Next() {
 		if err := rowsc.Scan(&id, &delta); err != nil {
 			return "", err
@@ -177,7 +180,10 @@ func (p *PgDB) GetAllMetricsTxt() (string, error) {
 	}); err != nil {
 		return "", err
 	}
-	defer rowsg.Close()
+	defer func() {
+		_ = rowsg.Close()
+		_ = rowsg.Err()
+	}()
 	for rowsg.Next() {
 		if err := rowsg.Scan(&id, &value); err != nil {
 			return "", err
