@@ -77,6 +77,7 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 			}); err != nil {
 				return err
 			}
+			return nil
 		}
 		return errors.New("wrong metric value type")
 	} else if mtype == metrictypes.CounterType {
@@ -91,6 +92,7 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 			}); err != nil {
 				return err
 			}
+			return nil
 		}
 		return errors.New("wrong metric value type")
 	}
