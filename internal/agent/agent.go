@@ -81,7 +81,9 @@ func encodeJSON(metrics []models.Metrics) (string, error) {
 
 func Run(serverAddr string, reportInterval, pollInterval int) {
 	serverHost := fmt.Sprintf("http://%s", serverAddr)
-	ctx := context.Background()
+	timeout := 30 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	m := rtMonitorSensGauge()
 	rtm := &runtime.MemStats{}
