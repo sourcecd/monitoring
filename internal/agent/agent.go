@@ -81,9 +81,9 @@ func encodeJSON(metrics []models.Metrics) (string, error) {
 
 func Run(serverAddr string, reportInterval, pollInterval int) {
 	serverHost := fmt.Sprintf("http://%s", serverAddr)
+	ctx := context.Background()
+	// ctx timeout per send
 	timeout := 30 * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 
 	m := rtMonitorSensGauge()
 	rtm := &runtime.MemStats{}
@@ -143,6 +143,8 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 		}
 		// resty framework automaticaly close Body
 		// resty automatical send Accept-Encoding: gzip (can see it in server log)
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
 		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
 		err = retry.Do(ctx, backoff, func(ctx context.Context) error {
 			if _, err = send(r, strToSend, serverHost); err != nil {
