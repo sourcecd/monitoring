@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -11,7 +10,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
-	"syscall"
+	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -68,20 +67,24 @@ func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 	return resp, err
 }
 
-func updateMetrics(memstat *runtime.MemStats, sysmetrics *sysMon) {
+func updateMetrics(memstat *runtime.MemStats, sysmetrics *sysMon, gMutex *sync.RWMutex) {
+	gMutex.Lock()
+	defer gMutex.Unlock()
 	runtime.ReadMemStats(memstat)
 	sysmetrics.pollCount += 1
 	sysmetrics.randomValue = metrictypes.Gauge(rand.New(rand.NewSource(time.Now().UnixNano())).Float64())
 }
 
-func encodeJSON(metrics []models.Metrics) (string, error) {
+func encodeJSON(metrics []models.Metrics, gMutex *sync.RWMutex) (string, error) {
+	gMutex.RLock()
+	defer gMutex.RUnlock()
 	jRes, err := json.Marshal(metrics)
 	return string(jRes), err
 }
 
 func Run(serverAddr string, reportInterval, pollInterval int) {
+	var gMutex sync.RWMutex
 	serverHost := fmt.Sprintf("http://%s", serverAddr)
-	ctx := context.Background()
 	// ctx timeout per send
 	timeout := 30 * time.Second
 
@@ -95,19 +98,21 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 	if reportInterval <= 0 || pollInterval <= 0 {
 		log.Fatal("wrong intervals")
 	}
+
+	// poll metrics
+	go func() {
+		for {
+			updateMetrics(rtm, sysMetrics, &gMutex)
+			time.Sleep(time.Duration(pollInterval) * time.Second)
+		}
+	}()
+
 	for {
 		var batchMetrics []models.Metrics
-		timeStart := time.Now().Unix()
-		for {
-			updateMetrics(rtm, sysMetrics)
 
-			time.Sleep(time.Duration(pollInterval) * time.Second)
-			if time.Now().Unix()-timeStart >= int64(reportInterval) {
-				break
-			}
-		}
-
+		gMutex.RLock()
 		rtmVal := reflect.ValueOf(rtm).Elem()
+		gMutex.RUnlock()
 		for i := 0; i < len(m); i++ {
 			v := rtmVal.FieldByName(m[i])
 			fl64, err := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
@@ -124,6 +129,7 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 			})
 		}
 
+		gMutex.RLock()
 		batchMetrics = append(batchMetrics,
 			models.Metrics{
 				ID:    "PollCount",
@@ -135,30 +141,32 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 				MType: metrictypes.GaugeType,
 				Value: (*float64)(&sysMetrics.randomValue),
 			})
+		gMutex.RUnlock()
 
-		strToSend, err := encodeJSON(batchMetrics)
+		strToSend, err := encodeJSON(batchMetrics, &gMutex)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
 		// resty framework automaticaly close Body
 		// resty automatical send Accept-Encoding: gzip (can see it in server log)
-		ctx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
 		err = retry.Do(ctx, backoff, func(ctx context.Context) error {
 			if _, err = send(r, strToSend, serverHost); err != nil {
-				if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNABORTED) || errors.Is(err, syscall.ECONNRESET) {
-					return retry.RetryableError(fmt.Errorf("retry done: %s", err.Error()))
-				}
-				return err
+				return retry.RetryableError(fmt.Errorf("retry done: %s", err.Error()))
 			}
 			return nil
 		})
+		cancel()
 		if err != nil {
 			log.Println(err)
 			continue
 		}
+		gMutex.Lock()
 		sysMetrics.pollCount = 0
+		gMutex.Unlock()
+		// report interval
+		time.Sleep(time.Duration(reportInterval) * time.Second)
 	}
 }

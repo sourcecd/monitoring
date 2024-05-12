@@ -101,12 +101,20 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
+	var tx *sql.Tx
+	var err error
 	bf := retry.WithMaxRetries(p.backoff.maxRetries, retry.NewFibonacci(p.backoff.fiboDuration))
 
-	tx, err := p.db.Begin()
-	if err != nil {
-		return fmt.Errorf("can't start tx to db: %s", err.Error())
+	if err = retry.Do(ctx, bf, func(ctx context.Context) error {
+		tx, err = p.db.Begin()
+		if err != nil {
+			return retry.RetryableError(fmt.Errorf("can't start tx to db: %s", err.Error()))
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
+
 	defer tx.Rollback()
 	for _, v := range metrics {
 		if v.MType == metrictypes.GaugeType && v.Value != nil {

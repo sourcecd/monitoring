@@ -57,7 +57,7 @@ func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
 		if v.MType == metrictypes.GaugeType && v.Value != nil {
 			m.gauge[v.ID] = metrictypes.Gauge(*v.Value)
 		} else if v.MType == metrictypes.CounterType && v.Delta != nil {
-			m.counter[v.ID] = metrictypes.Counter(*v.Delta)
+			m.counter[v.ID] += metrictypes.Counter(*v.Delta)
 		} else {
 			return errors.New("wrong metric type or nil value")
 		}

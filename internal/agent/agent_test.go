@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,7 @@ import (
 )
 
 func TestMetricsAgent(t *testing.T) {
+	var gMutex sync.RWMutex
 	var metrics []models.Metrics
 	rtm := &runtime.MemStats{}
 	sysMetrics := &sysMon{}
@@ -31,13 +33,13 @@ func TestMetricsAgent(t *testing.T) {
 	fl64, err := strconv.ParseFloat(fmt.Sprintf("%v", stringTestRt), 64)
 	require.NoError(t, err)
 
-	updateMetrics(rtm, sysMetrics)
+	updateMetrics(rtm, sysMetrics, &gMutex)
 
 	metrics = append(metrics, models.Metrics{ID: "RandomValue", MType: metrictypes.GaugeType, Value: (*float64)(&testrandVal)})
 	metrics = append(metrics, models.Metrics{ID: "PollCount", MType: metrictypes.CounterType, Delta: (*int64)(&testPollCount)})
 	metrics = append(metrics, models.Metrics{ID: "Alloc", MType: metrictypes.GaugeType, Value: &fl64})
 
-	jres, err := encodeJSON(metrics)
+	jres, err := encodeJSON(metrics, &gMutex)
 	require.NoError(t, err)
 	require.JSONEq(t, jres, expMetricURLs)
 
