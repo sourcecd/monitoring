@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -104,26 +105,27 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 func getAll(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		htmlBasic := `<!DOCTYPE html>
+		tmpl, _ := template.New("data").Parse(`
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="counters" content="width=device-width, initial-scale=1.0" />
-    <title>counters</title>
-  </head>
-  <body>
-  <pre>
-%s
-  </pre>
-  </body>
-</html>`
+<head>
+	<meta charset="UTF-8" />
+	<meta name="counters" content="width=device-width, initial-scale=1.0" />
+	<title>Counters</title>
+</head>
+<body>
+<pre>
+{{ .}}
+</pre>
+</body>
+</html>`)
 		res, err := storage.GetAllMetricsTxt()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, fmt.Sprintf(htmlBasic, res))
+		_ = tmpl.Execute(w, res)
 	}
 }
 
