@@ -54,6 +54,7 @@ func (m *MemStorage) WriteMetric(mtype, name string, val interface{}) error {
 func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
+	// i think we don't break all batch if one metric failed in batch (use continue)
 	for _, v := range metrics {
 		switch v.MType {
 		case metrictypes.GaugeType:

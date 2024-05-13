@@ -6,11 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"syscall"
 	"time"
 
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/sethvargo/go-retry"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
@@ -46,13 +43,7 @@ func (p *PgDB) PopulateDB() error {
 
 	if err := retry.Do(ctx, bf, func(ctx context.Context) error {
 		if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
-			popErr := fmt.Errorf("populate failed: %s", err.Error())
-			var pgErr *pgconn.PgError
-			if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNABORTED) ||
-				errors.Is(err, syscall.ECONNRESET) || (errors.As(err, &pgErr) && pgerrcode.IsConnectionException(pgErr.Code)) {
-				return retry.RetryableError(popErr)
-			}
-			return popErr
+			return retry.RetryableError(fmt.Errorf("populate failed: %s", err.Error()))
 		}
 		return nil
 	}); err != nil {
