@@ -5,14 +5,18 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sourcecd/monitoring/internal/metrictypes"
+	"github.com/sourcecd/monitoring/internal/models"
 )
 
 func TestMetricsAgent(t *testing.T) {
+	var gMutex sync.RWMutex
+	var metrics []models.Metrics
 	rtm := &runtime.MemStats{}
 	sysMetrics := &sysMon{}
 	numCount := 1
@@ -21,26 +25,25 @@ func TestMetricsAgent(t *testing.T) {
 	testrandVal := metrictypes.Gauge(0.123)
 	testPollCount := metrictypes.Counter(5)
 	testRtFiledName := "Alloc"
-	expSysMetricURLs := &sysMetricsJSON{
-		metricRandJ: `{"id":"RandomValue","type":"gauge","value":0.123}`,
-		metricPollCountJ: `{"id":"PollCount","type":"counter","delta":5}`,
-	}
-	expRtMetricURL := `{"id":"Alloc","type":"gauge","value":0}`
+	expMetricURLs := `[{"id":"RandomValue","type":"gauge","value":0.123}, 
+	{"id":"PollCount","type":"counter","delta":5}, {"id":"Alloc","type":"gauge","value":0}]`
 	// get val
 	m := reflect.ValueOf(rtm).Elem()
 	stringTestRt := fmt.Sprintf("%v", m.FieldByName(testRtFiledName))
 	fl64, err := strconv.ParseFloat(fmt.Sprintf("%v", stringTestRt), 64)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	parsedRtMetricURLres := parsedRtMetricURL(testRtFiledName, fl64)
+	updateMetrics(rtm, sysMetrics, &gMutex)
 
-	updateMetrics(rtm, sysMetrics)
-	urls := parsedSysMetricsURL(testrandVal, testPollCount)
+	metrics = append(metrics, models.Metrics{ID: "RandomValue", MType: metrictypes.GaugeType, Value: (*float64)(&testrandVal)})
+	metrics = append(metrics, models.Metrics{ID: "PollCount", MType: metrictypes.CounterType, Delta: (*int64)(&testPollCount)})
+	metrics = append(metrics, models.Metrics{ID: "Alloc", MType: metrictypes.GaugeType, Value: &fl64})
 
-	assert.Equal(t, metrictypes.Counter(numCount), sysMetrics.pollCount)
-	assert.NotEqual(t, metrictypes.Gauge(randVal), sysMetrics.randomValue)
-	assert.NotEqual(t, uint64(testAllocSens), rtm.Alloc)
+	jres, err := encodeJSON(metrics, &gMutex)
+	require.NoError(t, err)
+	require.JSONEq(t, jres, expMetricURLs)
 
-	assert.Equal(t, expSysMetricURLs, urls)
-	assert.Equal(t, expRtMetricURL, parsedRtMetricURLres)
+	require.Equal(t, metrictypes.Counter(numCount), sysMetrics.pollCount)
+	require.NotEqual(t, metrictypes.Gauge(randVal), sysMetrics.randomValue)
+	require.NotEqual(t, uint64(testAllocSens), rtm.Alloc)
 }

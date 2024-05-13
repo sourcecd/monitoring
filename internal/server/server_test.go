@@ -2,6 +2,7 @@ package server
 
 import (
 	"compress/gzip"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,9 +10,11 @@ import (
 
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sourcecd/monitoring/internal/storage"
+	"github.com/sourcecd/monitoring/mocks"
 )
 
 func TestUpdateHandler(t *testing.T) {
@@ -22,8 +25,7 @@ func TestUpdateHandler(t *testing.T) {
 		request    string
 	}
 
-	testStorage := &storage.MemStorage{}
-	testStorage.Setup()
+	testStorage := storage.NewMemStorage()
 
 	ts := httptest.NewServer(chiRouter(testStorage))
 	defer ts.Close()
@@ -124,8 +126,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 		requestBody string
 	}
 
-	testStorage := &storage.MemStorage{}
-	testStorage.Setup()
+	testStorage := storage.NewMemStorage()
 
 	ts := httptest.NewServer(chiRouter(testStorage))
 	defer ts.Close()
@@ -160,7 +161,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "no value of gauge metric",
+				response:    "bad metric type or no metric value or id is empty",
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "gauge"}`,
 			},
@@ -170,7 +171,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "no value of counter metric",
+				response:    "bad metric type or no metric value or id is empty",
 				request:     "/update/",
 				requestBody: `{"id": "testcounter2", "type": "counter"}`,
 			},
@@ -180,7 +181,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "bad metric type",
+				response:    "bad metric type or no metric value or id is empty",
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "qwe", "value": 0.1}`,
 			},
@@ -263,4 +264,54 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			require.Equal(t, v.want.response, strings.Trim(string(body), "\n"))
 		})
 	}
+}
+
+func TestPgDB(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mDB := mocks.NewMockStoreMetrics(ctrl)
+
+	ts := httptest.NewServer(chiRouter(mDB))
+	defer ts.Close()
+
+	gomock.InOrder(
+		mDB.EXPECT().Ping().Return(nil),
+		mDB.EXPECT().Ping().Return(errors.New("Connection refused")),
+	)
+	testPingCases := []struct {
+		name          string
+		expStatusCode int
+		expAns        string
+		mockAns       error
+	}{
+		{
+			name:          "PingOK",
+			expStatusCode: http.StatusOK,
+			expAns:        "OK\n",
+		},
+		{
+			name:          "PingWrong",
+			expStatusCode: http.StatusInternalServerError,
+			expAns:        "Connection refused\n",
+		},
+	}
+
+	for _, v := range testPingCases {
+		t.Run(v.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, ts.URL+"/ping", nil)
+			require.NoError(t, err)
+
+			resp, err := ts.Client().Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			b, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			require.Equal(t, v.expStatusCode, resp.StatusCode)
+			require.Equal(t, string(b), v.expAns)
+		})
+	}
+
 }

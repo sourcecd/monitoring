@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -47,7 +48,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 				http.Error(resp, "can't parse gauge metric", http.StatusBadRequest)
 				return
 			}
-			if err := storage.WriteGauge(metric.metricName, metrictypes.Gauge(fl64)); err != nil {
+			if err := storage.WriteMetric(metric.metricType, metric.metricName, metrictypes.Gauge(fl64)); err != nil {
 				http.Error(resp, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
@@ -57,7 +58,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 				http.Error(resp, "can't parse counter metric", http.StatusBadRequest)
 				return
 			}
-			if err := storage.WriteCounter(metric.metricName, metrictypes.Counter(i64)); err != nil {
+			if err := storage.WriteMetric(metric.metricType, metric.metricName, metrictypes.Counter(i64)); err != nil {
 				http.Error(resp, "can't store counter metric", http.StatusInternalServerError)
 				return
 			}
@@ -79,7 +80,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 		mVal := chi.URLParam(req, "val")
 		switch mType {
 		case metrictypes.GaugeType:
-			val, err := storage.GetGauge(mVal)
+			val, err := storage.GetMetric(metrictypes.GaugeType, mVal)
 			if err != nil {
 				http.Error(resp, "gauge not found", http.StatusNotFound)
 				return
@@ -87,7 +88,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			resp.WriteHeader(http.StatusOK)
 			_, _ = io.WriteString(resp, fmt.Sprintf("%v\n", val))
 		case metrictypes.CounterType:
-			val, err := storage.GetCounter(mVal)
+			val, err := storage.GetMetric(metrictypes.CounterType, mVal)
 			if err != nil {
 				http.Error(resp, "counter not found", http.StatusNotFound)
 				return
@@ -104,21 +105,27 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 func getAll(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		htmlBasic := `<!DOCTYPE html>
+		tmpl, _ := template.New("data").Parse(`
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="counters" content="width=device-width, initial-scale=1.0" />
-    <title>counters</title>
-  </head>
-  <body>
-  <pre>
-%s
-  </pre>
-  </body>
-</html>`
+<head>
+	<meta charset="UTF-8" />
+	<meta name="counters" content="width=device-width, initial-scale=1.0" />
+	<title>Counters</title>
+</head>
+<body>
+<pre>
+{{ .}}
+</pre>
+</body>
+</html>`)
+		res, err := storage.GetAllMetricsTxt()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, fmt.Sprintf(htmlBasic, storage.GetAllMetricsTxt()))
+		_ = tmpl.Execute(w, res)
 	}
 }
 
@@ -140,37 +147,25 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 		}
 		enc := json.NewEncoder(w)
 
-		switch resultParsedJSON.MType {
-		case metrictypes.GaugeType:
-			if resultParsedJSON.Value == nil {
-				http.Error(w, "no value of gauge metric", http.StatusBadRequest)
-				return
-			}
-			if err := storage.WriteGauge(resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
+		if resultParsedJSON.MType == metrictypes.GaugeType && resultParsedJSON.Value != nil && resultParsedJSON.ID != "" {
+			if err := storage.WriteMetric(resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
+				log.Println(err)
 				http.Error(w, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
-			w.WriteHeader(http.StatusOK)
-			if err := enc.Encode(&resultParsedJSON); err != nil {
-				http.Error(w, "can't create gauge json answer", http.StatusInternalServerError)
-				return
-			}
-		case metrictypes.CounterType:
-			if resultParsedJSON.Delta == nil {
-				http.Error(w, "no value of counter metric", http.StatusBadRequest)
-				return
-			}
-			if err := storage.WriteCounter(resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
+		} else if resultParsedJSON.MType == metrictypes.CounterType && resultParsedJSON.Delta != nil && resultParsedJSON.ID != "" {
+			if err := storage.WriteMetric(resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
+				log.Println(err)
 				http.Error(w, "can't store counter metric", http.StatusInternalServerError)
 				return
 			}
-			w.WriteHeader(http.StatusOK)
-			if err := enc.Encode(&resultParsedJSON); err != nil {
-				http.Error(w, "can't create counter json answer", http.StatusInternalServerError)
-				return
-			}
-		default:
-			http.Error(w, "bad metric type", http.StatusBadRequest)
+		} else {
+			http.Error(w, "bad metric type or no metric value or id is empty", http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		if err := enc.Encode(&resultParsedJSON); err != nil {
+			http.Error(w, "can't prepare json answer", http.StatusInternalServerError)
 			return
 		}
 	}
@@ -216,6 +211,49 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
+func updateBatchMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var batchMettricsJSON []models.Metrics
+
+		if r.Header.Get("Content-Type") != "application/json" {
+			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		dec := json.NewDecoder(r.Body)
+
+		if err := dec.Decode(&batchMettricsJSON); err != nil {
+			http.Error(w, "error to pasrse json request", http.StatusBadRequest)
+			return
+		}
+		enc := json.NewEncoder(w)
+
+		if err := storage.WriteBatchMetrics(batchMettricsJSON); err != nil {
+			log.Println(err)
+			http.Error(w, "error to store batch metrics", http.StatusInternalServerError)
+			return
+		}
+		// check ref
+		w.WriteHeader(http.StatusOK)
+		if err := enc.Encode(batchMettricsJSON); err != nil {
+			http.Error(w, "can't encode json", http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func dbPing(storage storage.StoreMetrics) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := storage.Ping(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK\n"))
+	}
+}
+
 func chiRouter(storage storage.StoreMetrics) chi.Router {
 	r := chi.NewRouter()
 
@@ -226,6 +264,10 @@ func chiRouter(storage storage.StoreMetrics) chi.Router {
 	//json
 	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(updateMetricsJSON(storage))))
 	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(getMetricsJSON(storage))))
+	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(updateBatchMetricsJSON(storage))))
+
+	//ping
+	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(dbPing(storage))))
 
 	return r
 }
@@ -242,39 +284,62 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 	}
 }
 
-func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string, restore bool, sigs chan os.Signal) {
-	if err := logging.Setup(loglevel); err != nil {
+func Run(config ConfigArgs, sigs chan os.Signal) {
+	if err := logging.Setup(config.Loglevel); err != nil {
 		log.Fatal(err)
 	}
 
-	m := &storage.MemStorage{}
-	m.Setup()
+	var store storage.StoreMetrics
 
-	if restore {
-		if err := m.ReadFromFile(fileStoragePath); err != nil {
-			log.Println(err)
-		}
-	}
-
-	//save result on shutdown and throw signal
-	go func() {
-		sig := <-sigs
-		fmt.Println("saving")
-		saveToFile(m, fileStoragePath, 0)
-        fmt.Println(sig)
+	if config.DatabaseDsn != "" {
 		signal.Reset(syscall.SIGINT, syscall.SIGTERM)
-		pid := os.Getpid()
-		p, err := os.FindProcess(pid)
+		//PGDB new
+		pgdb, err := storage.NewPgDB(config.DatabaseDsn)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := p.Signal(sig); err != nil {
+		defer pgdb.CloseDB()
+
+		//main context timeout (default 60 sec)
+		pgdb.SetTimeout(30 * time.Second)
+		pgdb.SetBackoff(1*time.Second, 3)
+
+		if err := pgdb.PopulateDB(); err != nil {
 			log.Fatal(err)
 		}
-	}()
 
-	go saveToFile(m, fileStoragePath, storeInterval)
-	
-	logging.Log.Info("Starting server on", zap.String("address", serverAddr))
-	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(serverAddr, chiRouter(m))))
+		store = pgdb
+	} else {
+		m := storage.NewMemStorage()
+
+		if config.Restore {
+			if err := m.ReadFromFile(config.FileStoragePath); err != nil {
+				log.Println(err)
+			}
+		}
+
+		//save result on shutdown and throw signal
+		go func() {
+			sig := <-sigs
+			fmt.Println("saving")
+			saveToFile(m, config.FileStoragePath, 0)
+			fmt.Println(sig)
+			signal.Reset(syscall.SIGINT, syscall.SIGTERM)
+			pid := os.Getpid()
+			p, err := os.FindProcess(pid)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if err := p.Signal(sig); err != nil {
+				log.Fatal(err)
+			}
+		}()
+
+		go saveToFile(m, config.FileStoragePath, config.StoreInterval)
+
+		store = m
+	}
+
+	logging.Log.Info("Starting server on", zap.String("address", config.ServerAddr))
+	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(config.ServerAddr, chiRouter(store))))
 }

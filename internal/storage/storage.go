@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 
@@ -13,12 +14,11 @@ import (
 )
 
 type StoreMetrics interface {
-	WriteGauge(name string, value metrictypes.Gauge) error
-	WriteCounter(name string, value metrictypes.Counter) error
-	GetGauge(name string) (metrictypes.Gauge, error)
-	GetCounter(name string) (metrictypes.Counter, error)
-	GetAllMetricsTxt() string
+	WriteMetric(mType, name string, val interface{}) error
+	WriteBatchMetrics(metrics []models.Metrics) error
+	GetAllMetricsTxt() (string, error)
 	GetMetric(mType, name string) (interface{}, error)
+	Ping() error
 }
 
 // inmemory
@@ -28,28 +28,56 @@ type MemStorage struct {
 	counter map[string]metrictypes.Counter
 }
 
-func (m *MemStorage) WriteGauge(name string, value metrictypes.Gauge) error {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	m.gauge[name] = value
+// TODO remove
+func (m *MemStorage) Ping() error {
 	return nil
-}
-func (m *MemStorage) WriteCounter(name string, value metrictypes.Counter) error {
-	m.mx.Lock()
-	defer m.mx.Unlock()
-	m.counter[name] += value
-	return nil
-}
-func (m *MemStorage) GetGauge(name string) (metrictypes.Gauge, error) {
-	m.mx.RLock()
-	defer m.mx.RUnlock()
-	if v, ok := m.gauge[name]; ok {
-		return v, nil
-	}
-	return metrictypes.Gauge(0), errors.New("no gauge value")
 }
 
-// test method (from mentor issue iter9)
+func (m *MemStorage) WriteMetric(mtype, name string, val interface{}) error {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	switch mtype {
+	case metrictypes.GaugeType:
+		if metric, ok := val.(metrictypes.Gauge); ok {
+			m.gauge[name] = metric
+			return nil
+		}
+		return errors.New("wrong metric value type")
+	case metrictypes.CounterType:
+		if metric, ok := val.(metrictypes.Counter); ok {
+			m.counter[name] += metric
+			return nil
+		}
+		return errors.New("wrong metric value type")
+	default:
+		return errors.New("wrong metric type")
+	}
+}
+func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
+	m.mx.Lock()
+	defer m.mx.Unlock()
+	// i think we don't break all batch if one metric failed in batch (use continue)
+	for _, v := range metrics {
+		switch v.MType {
+		case metrictypes.GaugeType:
+			if v.Value == nil || v.ID == "" {
+				log.Println("empty id or nil value gauge metric")
+				continue
+			}
+			m.gauge[v.ID] = metrictypes.Gauge(*v.Value)
+		case metrictypes.CounterType:
+			if v.Delta == nil || v.ID == "" {
+				log.Println("empty id or nil value counter metric")
+				continue
+			}
+			m.counter[v.ID] += metrictypes.Counter(*v.Delta)
+		default:
+			log.Println("wrong metric type")
+			continue
+		}
+	}
+	return nil
+}
 func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
@@ -66,16 +94,7 @@ func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
 	}
 	return nil, errors.New("no value")
 }
-
-func (m *MemStorage) GetCounter(name string) (metrictypes.Counter, error) {
-	m.mx.RLock()
-	defer m.mx.RUnlock()
-	if v, ok := m.counter[name]; ok {
-		return v, nil
-	}
-	return metrictypes.Counter(0), errors.New("no counter value")
-}
-func (m *MemStorage) GetAllMetricsTxt() string {
+func (m *MemStorage) GetAllMetricsTxt() (string, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
 	s := "---Counters---\n"
@@ -86,7 +105,7 @@ func (m *MemStorage) GetAllMetricsTxt() string {
 	for k, v := range m.gauge {
 		s += fmt.Sprintf("%v: %v\n", k, v)
 	}
-	return s
+	return s, nil
 }
 
 func (m *MemStorage) SaveToFile(fname string) error {
@@ -154,9 +173,6 @@ func (m *MemStorage) ReadFromFile(fname string) error {
 	return nil
 }
 
-func (m *MemStorage) Setup() *MemStorage {
-	m.gauge = make(map[string]metrictypes.Gauge)
-	m.counter = make(map[string]metrictypes.Counter)
-
-	return m
+func NewMemStorage() *MemStorage {
+	return &MemStorage{gauge: make(map[string]metrictypes.Gauge), counter: make(map[string]metrictypes.Counter)}
 }
