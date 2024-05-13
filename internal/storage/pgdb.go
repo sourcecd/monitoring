@@ -57,7 +57,7 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 	defer cancel()
 	bf := retry.WithMaxRetries(p.backoff.maxRetries, retry.NewFibonacci(p.backoff.fiboDuration))
 
-	switch mtype{
+	switch mtype {
 	case metrictypes.GaugeType:
 		if metric, ok := val.(metrictypes.Gauge); ok {
 			if err := retry.Do(ctx, bf, func(ctx context.Context) error {

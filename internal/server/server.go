@@ -284,17 +284,17 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 	}
 }
 
-func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string, restore bool, sigs chan os.Signal, databaseDsn string) {
-	if err := logging.Setup(loglevel); err != nil {
+func Run(config ConfigArgs, sigs chan os.Signal) {
+	if err := logging.Setup(config.Loglevel); err != nil {
 		log.Fatal(err)
 	}
 
 	var store storage.StoreMetrics
 
-	if databaseDsn != "" {
+	if config.DatabaseDsn != "" {
 		signal.Reset(syscall.SIGINT, syscall.SIGTERM)
 		//PGDB new
-		pgdb, err := storage.NewPgDB(databaseDsn)
+		pgdb, err := storage.NewPgDB(config.DatabaseDsn)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -312,8 +312,8 @@ func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string,
 	} else {
 		m := storage.NewMemStorage()
 
-		if restore {
-			if err := m.ReadFromFile(fileStoragePath); err != nil {
+		if config.Restore {
+			if err := m.ReadFromFile(config.FileStoragePath); err != nil {
 				log.Println(err)
 			}
 		}
@@ -322,7 +322,7 @@ func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string,
 		go func() {
 			sig := <-sigs
 			fmt.Println("saving")
-			saveToFile(m, fileStoragePath, 0)
+			saveToFile(m, config.FileStoragePath, 0)
 			fmt.Println(sig)
 			signal.Reset(syscall.SIGINT, syscall.SIGTERM)
 			pid := os.Getpid()
@@ -335,11 +335,11 @@ func Run(serverAddr, loglevel string, storeInterval int, fileStoragePath string,
 			}
 		}()
 
-		go saveToFile(m, fileStoragePath, storeInterval)
+		go saveToFile(m, config.FileStoragePath, config.StoreInterval)
 
 		store = m
 	}
 
-	logging.Log.Info("Starting server on", zap.String("address", serverAddr))
-	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(serverAddr, chiRouter(store))))
+	logging.Log.Info("Starting server on", zap.String("address", config.ServerAddr))
+	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(config.ServerAddr, chiRouter(store))))
 }

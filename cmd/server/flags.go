@@ -6,16 +6,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/sourcecd/monitoring/internal/server"
 )
 
-var serverAddr string
-var loglevel string
-var storeInterval int
-var fileStoragePath string
-var restore bool
-var databaseDsn string
-
-func servEnv() {
+func servEnv(config *server.ConfigArgs) {
 	s := os.Getenv("ADDRESS")
 	l := os.Getenv("LOG_LEVEL")
 	i := os.Getenv("STORE_INTERVAL")
@@ -25,41 +20,41 @@ func servEnv() {
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
-			serverAddr = s
+			config.ServerAddr = s
 		}
 	}
 	if l != "" {
-		loglevel = l
+		config.Loglevel = l
 	}
 	if i != "" {
 		ii, err := strconv.Atoi(i)
 		if err != nil {
 			log.Fatal(err)
 		}
-		storeInterval = ii
+		config.StoreInterval = ii
 	}
 	if f != "" {
-		fileStoragePath = f
+		config.FileStoragePath = f
 	}
 	if r != "" {
 		b, err := strconv.ParseBool(r)
 		if err != nil {
 			log.Fatal(err)
 		}
-		restore = b
+		config.Restore = b
 	}
 	if d != "" {
-		databaseDsn = d
+		config.DatabaseDsn = d
 	}
 }
 
-func servFlags() {
-	flag.StringVar(&serverAddr, "a", "localhost:8080", "Server bind addres and port")
-	flag.StringVar(&loglevel, "l", "info", "Log level for server")
-	flag.IntVar(&storeInterval, "i", 300, "metric store interval")
-	flag.StringVar(&fileStoragePath, "f", "/tmp/metrics-db.json", "file storage path")
-	flag.BoolVar(&restore, "r", true, "restore metric data")
+func servFlags(config *server.ConfigArgs) {
+	flag.StringVar(&config.ServerAddr, "a", "localhost:8080", "Server bind addres and port")
+	flag.StringVar(&config.Loglevel, "l", "info", "Log level for server")
+	flag.IntVar(&config.StoreInterval, "i", 300, "metric store interval")
+	flag.StringVar(&config.FileStoragePath, "f", "/tmp/metrics-db.json", "file storage path")
+	flag.BoolVar(&config.Restore, "r", true, "restore metric data")
 	//dsn example: host=localhost database=monitoring
-	flag.StringVar(&databaseDsn, "d", "", "pg db connect address")
+	flag.StringVar(&config.DatabaseDsn, "d", "", "pg db connect address")
 	flag.Parse()
 }
