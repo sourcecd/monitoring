@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"syscall"
 	"time"
 
@@ -116,8 +117,14 @@ func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 	}
 
 	defer tx.Rollback()
+	// i think we don't break all batch if one metric failed in batch (use continue)
 	for _, v := range metrics {
-		if v.MType == metrictypes.GaugeType && v.Value != nil {
+		switch v.MType {
+		case metrictypes.GaugeType:
+			if v.Value == nil || v.ID == "" {
+				log.Println("empty id or nil value gauge metric")
+				continue
+			}
 			if err := retry.Do(ctx, bf, func(ctx context.Context) error {
 				if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
 				values ($1, $2, $3) on conflict (id) do update set value = $3`, v.ID, v.MType, v.Value); err != nil {
@@ -127,7 +134,11 @@ func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 			}); err != nil {
 				return err
 			}
-		} else if v.MType == metrictypes.CounterType && v.Delta != nil {
+		case metrictypes.CounterType:
+			if v.Delta == nil || v.ID == "" {
+				log.Println("empty id or nil value counter metric")
+				continue
+			}
 			if err := retry.Do(ctx, bf, func(ctx context.Context) error {
 				if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
 				values ($1, $2, $3) on conflict (id) 
@@ -138,8 +149,9 @@ func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 			}); err != nil {
 				return err
 			}
-		} else {
-			return errors.New("wrong metric type or nil value")
+		default:
+			log.Println("wrong metric type")
+			continue
 		}
 	}
 	return tx.Commit()

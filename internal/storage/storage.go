@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 
@@ -54,12 +55,22 @@ func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	for _, v := range metrics {
-		if v.MType == metrictypes.GaugeType && v.Value != nil {
+		switch v.MType {
+		case metrictypes.GaugeType:
+			if v.Value == nil || v.ID == "" {
+				log.Println("empty id or nil value gauge metric")
+				continue
+			}
 			m.gauge[v.ID] = metrictypes.Gauge(*v.Value)
-		} else if v.MType == metrictypes.CounterType && v.Delta != nil {
+		case metrictypes.CounterType:
+			if v.Delta == nil || v.ID == "" {
+				log.Println("empty id or nil value counter metric")
+				continue
+			}
 			m.counter[v.ID] += metrictypes.Counter(*v.Delta)
-		} else {
-			return errors.New("wrong metric type or nil value")
+		default:
+			log.Println("wrong metric type")
+			continue
 		}
 	}
 	return nil

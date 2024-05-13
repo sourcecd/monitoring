@@ -147,20 +147,20 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 		}
 		enc := json.NewEncoder(w)
 
-		if resultParsedJSON.MType == metrictypes.GaugeType && resultParsedJSON.Value != nil {
+		if resultParsedJSON.MType == metrictypes.GaugeType && resultParsedJSON.Value != nil && resultParsedJSON.ID != "" {
 			if err := storage.WriteMetric(resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
 				log.Println(err)
 				http.Error(w, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
-		} else if resultParsedJSON.MType == metrictypes.CounterType && resultParsedJSON.Delta != nil {
+		} else if resultParsedJSON.MType == metrictypes.CounterType && resultParsedJSON.Delta != nil && resultParsedJSON.ID != "" {
 			if err := storage.WriteMetric(resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
 				log.Println(err)
 				http.Error(w, "can't store counter metric", http.StatusInternalServerError)
 				return
 			}
 		} else {
-			http.Error(w, "bad metric type or no metric value", http.StatusBadRequest)
+			http.Error(w, "bad metric type or no metric value or id is empty", http.StatusBadRequest)
 			return
 		}
 		w.WriteHeader(http.StatusOK)

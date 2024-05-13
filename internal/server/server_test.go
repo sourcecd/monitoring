@@ -161,7 +161,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "bad metric type or no metric value",
+				response:    "bad metric type or no metric value or id is empty",
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "gauge"}`,
 			},
@@ -171,7 +171,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "bad metric type or no metric value",
+				response:    "bad metric type or no metric value or id is empty",
 				request:     "/update/",
 				requestBody: `{"id": "testcounter2", "type": "counter"}`,
 			},
@@ -181,7 +181,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  400,
-				response:    "bad metric type or no metric value",
+				response:    "bad metric type or no metric value or id is empty",
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "qwe", "value": 0.1}`,
 			},
