@@ -36,20 +36,22 @@ func (m *MemStorage) Ping() error {
 func (m *MemStorage) WriteMetric(mtype, name string, val interface{}) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
-	if mtype == metrictypes.GaugeType {
+	switch mtype {
+	case metrictypes.GaugeType:
 		if metric, ok := val.(metrictypes.Gauge); ok {
 			m.gauge[name] = metric
 			return nil
 		}
 		return errors.New("wrong metric value type")
-	} else if mtype == metrictypes.CounterType {
+	case metrictypes.CounterType:
 		if metric, ok := val.(metrictypes.Counter); ok {
 			m.counter[name] += metric
 			return nil
 		}
 		return errors.New("wrong metric value type")
+	default:
+		return errors.New("wrong metric type")
 	}
-	return errors.New("wrong metric type")
 }
 func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
 	m.mx.Lock()

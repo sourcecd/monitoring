@@ -57,7 +57,8 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 	defer cancel()
 	bf := retry.WithMaxRetries(p.backoff.maxRetries, retry.NewFibonacci(p.backoff.fiboDuration))
 
-	if mtype == metrictypes.GaugeType {
+	switch mtype{
+	case metrictypes.GaugeType:
 		if metric, ok := val.(metrictypes.Gauge); ok {
 			if err := retry.Do(ctx, bf, func(ctx context.Context) error {
 				//idempotency
@@ -72,7 +73,7 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 			return nil
 		}
 		return errors.New("wrong metric value type")
-	} else if mtype == metrictypes.CounterType {
+	case metrictypes.CounterType:
 		if metric, ok := val.(metrictypes.Counter); ok {
 			if err := retry.Do(ctx, bf, func(ctx context.Context) error {
 				if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
@@ -87,8 +88,9 @@ func (p *PgDB) WriteMetric(mtype, name string, val interface{}) error {
 			return nil
 		}
 		return errors.New("wrong metric value type")
+	default:
+		return errors.New("wrong metric type")
 	}
-	return errors.New("wrong metric type")
 }
 func (p *PgDB) WriteBatchMetrics(metrics []models.Metrics) error {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
