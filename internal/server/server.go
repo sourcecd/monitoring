@@ -143,6 +143,7 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 		dec := json.NewDecoder(r.Body)
 
 		if err := dec.Decode(&resultParsedJSON); err != nil {
+			log.Fatal("error to pasrse json request")
 			http.Error(w, "error to pasrse json request", http.StatusBadRequest)
 			return
 		}
