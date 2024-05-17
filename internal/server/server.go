@@ -258,14 +258,14 @@ func dbPing(storage storage.StoreMetrics) http.HandlerFunc {
 func chiRouter(storage storage.StoreMetrics, keyenc string) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(cryptandsign.SignCheck(compression.GzipCompDecomp(updateMetrics(storage)), keyenc)))
+	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(updateMetrics(storage), keyenc))))
 	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(getMetrics(storage))))
 	r.Get("/", logging.WriteLogging(compression.GzipCompDecomp(getAll(storage))))
 
 	//json
-	r.Post("/update/", logging.WriteLogging(cryptandsign.SignCheck(compression.GzipCompDecomp(updateMetricsJSON(storage)), keyenc)))
+	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(updateMetricsJSON(storage), keyenc))))
 	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(getMetricsJSON(storage))))
-	r.Post("/updates/", logging.WriteLogging(cryptandsign.SignCheck(compression.GzipCompDecomp(updateBatchMetricsJSON(storage)), keyenc)))
+	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(updateBatchMetricsJSON(storage), keyenc))))
 
 	//ping
 	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(dbPing(storage))))
