@@ -33,7 +33,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Content-Type") != "" && req.Header.Get("Content-Type") != "text/plain" {
 			// tmp
-			log.Panic("9")
+			log.Println("9")
 			http.Error(resp, fmt.Sprintf("wrong content type: %s", req.Header.Get("Content-Type")), http.StatusBadRequest)
 			return
 		}
@@ -49,6 +49,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			fl64, err := strconv.ParseFloat(metric.metricValue, 64)
 			if err != nil {
 				// tmp
+				log.Println("20")
 				http.Error(resp, "can't parse gauge metric", http.StatusBadRequest)
 				return
 			}
@@ -60,6 +61,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			i64, err := strconv.ParseInt(metric.metricValue, 10, 64)
 			if err != nil {
 				// tmp
+				log.Println("30")
 				http.Error(resp, "can't parse counter metric", http.StatusBadRequest)
 				return
 			}
@@ -69,6 +71,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			}
 		default:
 			// tmp
+			log.Println("40")
 			http.Error(resp, "metric_type not found", http.StatusBadRequest)
 			return
 		}
@@ -103,7 +106,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			_, _ = io.WriteString(resp, fmt.Sprintf("%v\n", val))
 		default:
 			// tmp
-			log.Panic("13")
+			log.Println("13")
 			http.Error(resp, "metric_type not found", http.StatusBadRequest)
 			return
 		}
@@ -143,7 +146,7 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 
 		if r.Header.Get("Content-Type") != "application/json" {
 			// tmp
-			log.Panic("14")
+			log.Println("14")
 			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
 			return
 		}
@@ -153,7 +156,7 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 
 		if err := dec.Decode(&resultParsedJSON); err != nil {
 			// tmp
-			log.Panic("1")
+			log.Println("1")
 			http.Error(w, "error to pasrse json request", http.StatusBadRequest)
 			return
 		}
@@ -173,7 +176,7 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 			}
 		} else {
 			// tmp
-			log.Panic("15")
+			log.Println("50")
 			http.Error(w, "bad metric type or no metric value or id is empty", http.StatusBadRequest)
 			return
 		}
@@ -191,7 +194,7 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 
 		if r.Header.Get("Content-Type") != "application/json" {
 			// tmp
-			log.Panic("6")
+			log.Println("6")
 			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
 			return
 		}
@@ -201,7 +204,7 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 
 		if err := dec.Decode(&resultParsedJSON); err != nil {
 			// tmp
-			log.Panic("7")
+			log.Println("7")
 			http.Error(w, "error to pasrse json request", http.StatusBadRequest)
 			return
 		}
@@ -235,7 +238,7 @@ func updateBatchMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 
 		if r.Header.Get("Content-Type") != "application/json" {
 			// tmp
-			log.Panic("16")
+			log.Println("16")
 			http.Error(w, fmt.Sprintf("wrong content type: %s", r.Header.Get("Content-Type")), http.StatusBadRequest)
 			return
 		}
@@ -245,7 +248,7 @@ func updateBatchMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 
 		if err := dec.Decode(&batchMettricsJSON); err != nil {
 			// tmp
-			log.Panic("8")
+			log.Println("8")
 			http.Error(w, "error to pasrse json request", http.StatusBadRequest)
 			return
 		}
