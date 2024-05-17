@@ -49,7 +49,6 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			fl64, err := strconv.ParseFloat(metric.metricValue, 64)
 			if err != nil {
 				// tmp
-				log.Panic("10")
 				http.Error(resp, "can't parse gauge metric", http.StatusBadRequest)
 				return
 			}
@@ -61,7 +60,6 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			i64, err := strconv.ParseInt(metric.metricValue, 10, 64)
 			if err != nil {
 				// tmp
-				log.Panic("11")
 				http.Error(resp, "can't parse counter metric", http.StatusBadRequest)
 				return
 			}
@@ -71,7 +69,6 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			}
 		default:
 			// tmp
-			log.Panic("12")
 			http.Error(resp, "metric_type not found", http.StatusBadRequest)
 			return
 		}
