@@ -25,7 +25,7 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 		hashSignStr := r.Header.Get(signHeaderType)
 		if hashSignStr == "" {
 			// tmp
-			log.Panic("2")
+			log.Println("no hashSign in headers")
 			http.Error(w, "no hashSign in headers", http.StatusBadRequest)
 			return
 		}
@@ -33,7 +33,7 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 		req, err := io.ReadAll(r.Body)
 		if err != nil {
 			// tmp
-			log.Panic("3")
+			log.Println("error read request body")
 			http.Error(w, "error read request body", http.StatusBadRequest)
 			return
 		}
@@ -41,7 +41,7 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 		hashSign, err := hex.DecodeString(hashSignStr)
 		if err != nil {
 			// tmp
-			log.Panic("4")
+			log.Println("can't decode hashSign")
 			http.Error(w, "can't decode hashSign", http.StatusBadRequest)
 			return
 		}
@@ -53,7 +53,7 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 			return
 		}
 		// tmp
-		log.Panic("5")
+		log.Println("sign error")
 		http.Error(w, "sign error", http.StatusBadRequest)
 	}
 }
