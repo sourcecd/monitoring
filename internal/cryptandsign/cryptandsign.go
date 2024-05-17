@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/go-resty/resty/v2"
@@ -23,18 +24,21 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 		}
 		hashSignStr := r.Header.Get(signHeaderType)
 		if hashSignStr == "" {
+			log.Println("no hashSign in headers")
 			http.Error(w, "no hashSign in headers", http.StatusBadRequest)
 			return
 		}
 		// for hmac
 		req, err := io.ReadAll(r.Body)
 		if err != nil {
+			log.Println("error read request body")
 			http.Error(w, "error read request body", http.StatusBadRequest)
 			return
 		}
 		r.Body = io.NopCloser(bytes.NewBuffer(req))
 		hashSign, err := hex.DecodeString(hashSignStr)
 		if err != nil {
+			log.Println("can't decode hashSign")
 			http.Error(w, "can't decode hashSign", http.StatusBadRequest)
 			return
 		}
@@ -45,6 +49,7 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 			h(w, r)
 			return
 		}
+		log.Println("sign error")
 		http.Error(w, "sign error", http.StatusBadRequest)
 	}
 }
