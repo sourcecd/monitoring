@@ -18,22 +18,17 @@ type AgentSendFunc func(r *resty.Request, send, serverHost string) (*resty.Respo
 
 func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if seckey == "" {
+		hashSignStr := r.Header.Get(signHeaderType)
+		if seckey == "" || hashSignStr == "" {
 			h(w, r)
 			return
 		}
-		hashSignStr := r.Header.Get(signHeaderType)
-		if hashSignStr == "" {
-			// tmp
-			log.Println("no hashSign in headers")
-			http.Error(w, "no hashSign in headers", http.StatusBadRequest)
-			return
-		}
+
 		// for hmac
 		req, err := io.ReadAll(r.Body)
 		if err != nil {
 			// tmp
-			log.Println("error read request body")
+			log.Println("sign: error read request body")
 			http.Error(w, "error read request body", http.StatusBadRequest)
 			return
 		}
@@ -41,7 +36,7 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 		hashSign, err := hex.DecodeString(hashSignStr)
 		if err != nil {
 			// tmp
-			log.Println("can't decode hashSign")
+			log.Println("sign: can't decode hashSign")
 			http.Error(w, "can't decode hashSign", http.StatusBadRequest)
 			return
 		}
@@ -53,7 +48,7 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 			return
 		}
 		// tmp
-		log.Println("sign error")
+		log.Println("sign: sign error")
 		http.Error(w, "sign error", http.StatusBadRequest)
 	}
 }
