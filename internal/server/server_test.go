@@ -18,6 +18,7 @@ import (
 )
 
 func TestUpdateHandler(t *testing.T) {
+	var keyenc string
 	type want struct {
 		method     string
 		statusCode int
@@ -27,7 +28,7 @@ func TestUpdateHandler(t *testing.T) {
 
 	testStorage := storage.NewMemStorage()
 
-	ts := httptest.NewServer(chiRouter(testStorage))
+	ts := httptest.NewServer(chiRouter(testStorage, keyenc))
 	defer ts.Close()
 
 	testCase := []struct {
@@ -118,6 +119,7 @@ func TestUpdateHandler(t *testing.T) {
 }
 
 func TestUpdateHandlerJSON(t *testing.T) {
+	var keyenc string
 	type want struct {
 		method      string
 		statusCode  int
@@ -128,7 +130,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 
 	testStorage := storage.NewMemStorage()
 
-	ts := httptest.NewServer(chiRouter(testStorage))
+	ts := httptest.NewServer(chiRouter(testStorage, keyenc))
 	defer ts.Close()
 
 	//json api
@@ -267,12 +269,13 @@ func TestUpdateHandlerJSON(t *testing.T) {
 }
 
 func TestPgDB(t *testing.T) {
+	var keyenc string
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mDB := mocks.NewMockStoreMetrics(ctrl)
 
-	ts := httptest.NewServer(chiRouter(mDB))
+	ts := httptest.NewServer(chiRouter(mDB, keyenc))
 	defer ts.Close()
 
 	gomock.InOrder(

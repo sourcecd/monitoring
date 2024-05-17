@@ -17,6 +17,7 @@ func servEnv(config *server.ConfigArgs) {
 	f := os.Getenv("FILE_STORAGE_PATH")
 	r := os.Getenv("RESTORE")
 	d := os.Getenv("DATABASE_DSN")
+	k := os.Getenv("KEY")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
@@ -46,6 +47,9 @@ func servEnv(config *server.ConfigArgs) {
 	if d != "" {
 		config.DatabaseDsn = d
 	}
+	if k != "" {
+		config.KeyEnc = k
+	}
 }
 
 func servFlags(config *server.ConfigArgs) {
@@ -56,5 +60,6 @@ func servFlags(config *server.ConfigArgs) {
 	flag.BoolVar(&config.Restore, "r", true, "restore metric data")
 	//dsn example: host=localhost database=monitoring
 	flag.StringVar(&config.DatabaseDsn, "d", "", "pg db connect address")
+	flag.StringVar(&config.KeyEnc, "k", "", "encrypted key")
 	flag.Parse()
 }

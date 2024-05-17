@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/sethvargo/go-retry"
+	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
@@ -62,7 +63,7 @@ func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 		return nil, err
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("%d", resp.StatusCode())
+		return nil, fmt.Errorf("ans: %d, %s", resp.StatusCode(), resp.Body())
 	}
 	return resp, err
 }
@@ -82,9 +83,9 @@ func encodeJSON(metrics []models.Metrics, gMutex *sync.RWMutex) (string, error) 
 	return string(jRes), err
 }
 
-func Run(serverAddr string, reportInterval, pollInterval int) {
+func Run(config ConfigArgs) {
 	var gMutex sync.RWMutex
-	serverHost := fmt.Sprintf("http://%s", serverAddr)
+	serverHost := fmt.Sprintf("http://%s", config.ServerAddr)
 	// ctx timeout per send
 	timeout := 30 * time.Second
 
@@ -95,7 +96,7 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 	client := resty.New()
 	r := client.R().SetHeader("Content-Type", "application/json")
 
-	if reportInterval <= 0 || pollInterval <= 0 {
+	if config.ReportInterval <= 0 || config.PollInterval <= 0 {
 		log.Fatal("wrong intervals")
 	}
 
@@ -103,7 +104,7 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 	go func() {
 		for {
 			updateMetrics(rtm, sysMetrics, &gMutex)
-			time.Sleep(time.Duration(pollInterval) * time.Second)
+			time.Sleep(time.Duration(config.PollInterval) * time.Second)
 		}
 	}()
 
@@ -153,7 +154,7 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
 		err = retry.Do(ctx, backoff, func(ctx context.Context) error {
-			if _, err = send(r, strToSend, serverHost); err != nil {
+			if _, err = cryptandsign.SignNew(send, config.KeyEnc)(r, strToSend, serverHost); err != nil {
 				return retry.RetryableError(fmt.Errorf("retry done: %s", err.Error()))
 			}
 			return nil
@@ -167,6 +168,6 @@ func Run(serverAddr string, reportInterval, pollInterval int) {
 		sysMetrics.pollCount = 0
 		gMutex.Unlock()
 		// report interval
-		time.Sleep(time.Duration(reportInterval) * time.Second)
+		time.Sleep(time.Duration(config.ReportInterval) * time.Second)
 	}
 }

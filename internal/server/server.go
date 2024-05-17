@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sourcecd/monitoring/internal/compression"
+	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/logging"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
@@ -254,17 +255,17 @@ func dbPing(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func chiRouter(storage storage.StoreMetrics) chi.Router {
+func chiRouter(storage storage.StoreMetrics, keyenc string) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(updateMetrics(storage))))
+	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(cryptandsign.SignCheck(compression.GzipCompDecomp(updateMetrics(storage)), keyenc)))
 	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(getMetrics(storage))))
 	r.Get("/", logging.WriteLogging(compression.GzipCompDecomp(getAll(storage))))
 
 	//json
-	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(updateMetricsJSON(storage))))
+	r.Post("/update/", logging.WriteLogging(cryptandsign.SignCheck(compression.GzipCompDecomp(updateMetricsJSON(storage)), keyenc)))
 	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(getMetricsJSON(storage))))
-	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(updateBatchMetricsJSON(storage))))
+	r.Post("/updates/", logging.WriteLogging(cryptandsign.SignCheck(compression.GzipCompDecomp(updateBatchMetricsJSON(storage)), keyenc)))
 
 	//ping
 	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(dbPing(storage))))
@@ -341,5 +342,5 @@ func Run(config ConfigArgs, sigs chan os.Signal) {
 	}
 
 	logging.Log.Info("Starting server on", zap.String("address", config.ServerAddr))
-	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(config.ServerAddr, chiRouter(store))))
+	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(config.ServerAddr, chiRouter(store, config.KeyEnc))))
 }
