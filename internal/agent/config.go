@@ -5,4 +5,5 @@ type ConfigArgs struct {
 	ReportInterval int
 	PollInterval   int
 	KeyEnc         string
+	RateLimit      int
 }
