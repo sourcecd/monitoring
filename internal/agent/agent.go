@@ -261,8 +261,8 @@ func Run(config ConfigArgs) {
 		// parse runtime metrics
 		<-startCoordChan1
 		parseRtm(rtm, m, jsonMetricsModel, sysMetrics)
-		<-startCoordChan2
 		// kern sys metrics
+		<-startCoordChan2
 		parseKernMetrics(kernelSysMetrics, jsonMetricsModel)
 
 		// parse full json
