@@ -15,7 +15,7 @@ import (
 
 const seckey = "Kaib8eel"
 
-func testServerHttpHandler(w http.ResponseWriter, r *http.Request) {
+func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
 	signHeader := r.Header.Get(signHeaderType)
 	allBody, _ := io.ReadAll(r.Body)
 	if r.Header.Get(signHeaderType) != "" {
@@ -30,7 +30,7 @@ func testSendFunc(r *resty.Request, send, serverHost string) (*resty.Response, e
 }
 
 func TestAgentSign(t *testing.T) {
-	var myTestBody string = `
+	myTestBody := `
 	Test body need to sign
 	`
 
@@ -56,7 +56,7 @@ func TestAgentSign(t *testing.T) {
 		},
 	}
 
-	ts := httptest.NewServer(http.HandlerFunc(testServerHttpHandler))
+	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
 	defer ts.Close()
 
 	for _, v := range testCases {
