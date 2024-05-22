@@ -202,6 +202,8 @@ func worker(id int, jobs <-chan string, timeout time.Duration, serverHost string
 }
 
 func Run(config ConfigArgs) {
+	startCoordChan1 := make(chan struct{})
+	startCoordChan2 := make(chan struct{})
 	ratelimit := config.RateLimit
 	serverHost := fmt.Sprintf("http://%s", config.ServerAddr)
 	// ctx timeout per send
@@ -231,24 +233,35 @@ func Run(config ConfigArgs) {
 
 	// poll metrics
 	go func() {
+		open := true
 		for {
 			updateMetrics(rtm, sysMetrics)
+			if open {
+				close(startCoordChan1)
+				open = false
+			}
 			time.Sleep(time.Duration(config.PollInterval) * time.Second)
 		}
 	}()
 
 	// poll kernMetrics
 	go func() {
+		open := true
 		for {
 			updateSysKernMetrics(kernelSysMetrics)
+			if open {
+				close(startCoordChan2)
+				open = false
+			}
 			time.Sleep(time.Duration(config.PollInterval) * time.Second)
 		}
 	}()
 
 	for {
 		// parse runtime metrics
+		<-startCoordChan1
 		parseRtm(rtm, m, jsonMetricsModel, sysMetrics)
-
+		<-startCoordChan2
 		// kern sys metrics
 		parseKernMetrics(kernelSysMetrics, jsonMetricsModel)
 
@@ -262,9 +275,6 @@ func Run(config ConfigArgs) {
 			log.Println(err)
 			continue
 		}
-		sysMetrics.mx.RLock()
-		fmt.Println(sysMetrics.pollCount)
-		sysMetrics.mx.RUnlock()
 
 		jobsQueue <- strToSend
 
