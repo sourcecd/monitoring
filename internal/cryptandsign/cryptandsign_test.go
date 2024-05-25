@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	seckey     = "Kaib8eel"
-	myTestBody = "Test body need to sign"
+	seckey       = "Kaib8eel"
+	testBodyReq  = "Test body need to sign"
+	testBodyResp = "Test body need to sign server ans"
 )
 
 func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
@@ -32,15 +33,15 @@ func testSendFunc(r *resty.Request, send, serverHost string) (*resty.Response, e
 	return r.SetBody(send).Post(serverHost)
 }
 
-func etalonHmacFunc(seckey string) string {
+func etalonHmacFunc(seckey, body string) string {
 	h := hmac.New(sha256.New, []byte(seckey))
-	h.Write([]byte(myTestBody))
+	h.Write([]byte(body))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
 func TestAgentSign(t *testing.T) {
 	//Etalon gen sign !
-	etalonSign := etalonHmacFunc(seckey)
+	etalonSign := etalonHmacFunc(seckey, testBodyReq)
 
 	testCases := []struct {
 		name      string
@@ -69,7 +70,7 @@ func TestAgentSign(t *testing.T) {
 
 			// Check Main Sign Func
 			testSendF := SignNew(testSendFunc, v.seckey)
-			resp, err := testSendF(rReq, myTestBody, ts.URL)
+			resp, err := testSendF(rReq, testBodyReq, ts.URL)
 			require.NoError(t, err)
 			respSign := resp.Header().Get(signHeaderType)
 			require.Equal(t, v.expresult, respSign)
@@ -78,13 +79,13 @@ func TestAgentSign(t *testing.T) {
 }
 
 func TestServerRespSign(t *testing.T) {
-	etalonSign := etalonHmacFunc(seckey)
+	etalonSign := etalonHmacFunc(seckey, testBodyResp)
 
 	ts := httptest.NewServer(SignCheck(testServerHTTPHandler, seckey))
 	defer ts.Close()
 
 	client := resty.New()
-	testResp, err := client.R().SetBody(myTestBody).Post(ts.URL)
+	testResp, err := client.R().SetBody(testBodyResp).Post(ts.URL)
 	require.NoError(t, err)
 	require.Equal(t, etalonSign, testResp.Header().Get(signHeaderType))
 }
