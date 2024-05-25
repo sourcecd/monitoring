@@ -13,7 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const seckey = "Kaib8eel"
+const (
+	seckey     = "Kaib8eel"
+	myTestBody = "Test body need to sign"
+)
 
 func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
 	signHeader := r.Header.Get(signHeaderType)
@@ -29,15 +32,15 @@ func testSendFunc(r *resty.Request, send, serverHost string) (*resty.Response, e
 	return r.SetBody(send).Post(serverHost)
 }
 
-func TestAgentSign(t *testing.T) {
-	myTestBody := `
-	Test body need to sign
-	`
-
-	//Etalon gen sign !
+func etalonHmacFunc(seckey string) string {
 	h := hmac.New(sha256.New, []byte(seckey))
 	h.Write([]byte(myTestBody))
-	etalonSign := hex.EncodeToString(h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func TestAgentSign(t *testing.T) {
+	//Etalon gen sign !
+	etalonSign := etalonHmacFunc(seckey)
 
 	testCases := []struct {
 		name      string
@@ -72,4 +75,16 @@ func TestAgentSign(t *testing.T) {
 			require.Equal(t, v.expresult, respSign)
 		})
 	}
+}
+
+func TestServerRespSign(t *testing.T) {
+	etalonSign := etalonHmacFunc(seckey)
+
+	ts := httptest.NewServer(SignCheck(testServerHTTPHandler, seckey))
+	defer ts.Close()
+
+	client := resty.New()
+	testResp, err := client.R().SetBody(myTestBody).Post(ts.URL)
+	require.NoError(t, err)
+	require.Equal(t, etalonSign, testResp.Header().Get(signHeaderType))
 }
