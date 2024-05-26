@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,11 +15,11 @@ import (
 )
 
 type StoreMetrics interface {
-	WriteMetric(mType, name string, val interface{}) error
-	WriteBatchMetrics(metrics []models.Metrics) error
-	GetAllMetricsTxt() (string, error)
-	GetMetric(mType, name string) (interface{}, error)
-	Ping() error
+	WriteMetric(ctx context.Context, mType, name string, val interface{}) error
+	WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error
+	GetAllMetricsTxt(ctx context.Context) (string, error)
+	GetMetric(ctx context.Context, mType, name string) (interface{}, error)
+	Ping(ctx context.Context) error
 }
 
 // inmemory
@@ -29,11 +30,11 @@ type MemStorage struct {
 }
 
 // TODO remove
-func (m *MemStorage) Ping() error {
+func (m *MemStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (m *MemStorage) WriteMetric(mtype, name string, val interface{}) error {
+func (m *MemStorage) WriteMetric(ctx context.Context, mtype, name string, val interface{}) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	switch mtype {
@@ -53,7 +54,7 @@ func (m *MemStorage) WriteMetric(mtype, name string, val interface{}) error {
 		return errors.New("wrong metric type")
 	}
 }
-func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
+func (m *MemStorage) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	// i think we don't break all batch if one metric failed in batch (use continue)
@@ -78,7 +79,7 @@ func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
 	}
 	return nil
 }
-func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
+func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interface{}, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
 	if mType == metrictypes.GaugeType {
@@ -94,7 +95,7 @@ func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
 	}
 	return nil, errors.New("no value")
 }
-func (m *MemStorage) GetAllMetricsTxt() (string, error) {
+func (m *MemStorage) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
 	s := "---Counters---\n"

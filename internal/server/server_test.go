@@ -2,6 +2,7 @@ package server
 
 import (
 	"compress/gzip"
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -13,11 +14,15 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sourcecd/monitoring/internal/retr"
 	"github.com/sourcecd/monitoring/internal/storage"
 	"github.com/sourcecd/monitoring/mocks"
 )
 
 func TestUpdateHandler(t *testing.T) {
+	ctx := context.Background()
+	rtr := retr.NewRetr()
+
 	var keyenc string
 	type want struct {
 		method     string
@@ -28,7 +33,7 @@ func TestUpdateHandler(t *testing.T) {
 
 	testStorage := storage.NewMemStorage()
 
-	ts := httptest.NewServer(chiRouter(testStorage, keyenc))
+	ts := httptest.NewServer(chiRouter(ctx, testStorage, keyenc, rtr))
 	defer ts.Close()
 
 	testCase := []struct {
@@ -119,6 +124,9 @@ func TestUpdateHandler(t *testing.T) {
 }
 
 func TestUpdateHandlerJSON(t *testing.T) {
+	ctx := context.Background()
+	rtr := retr.NewRetr()
+
 	var keyenc string
 	type want struct {
 		method      string
@@ -130,7 +138,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 
 	testStorage := storage.NewMemStorage()
 
-	ts := httptest.NewServer(chiRouter(testStorage, keyenc))
+	ts := httptest.NewServer(chiRouter(ctx, testStorage, keyenc, rtr))
 	defer ts.Close()
 
 	//json api
@@ -269,18 +277,21 @@ func TestUpdateHandlerJSON(t *testing.T) {
 }
 
 func TestPgDB(t *testing.T) {
+	ctx := context.Background()
+	rtr := retr.NewRetr()
+
 	var keyenc string
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mDB := mocks.NewMockStoreMetrics(ctrl)
 
-	ts := httptest.NewServer(chiRouter(mDB, keyenc))
+	ts := httptest.NewServer(chiRouter(ctx, mDB, keyenc, rtr))
 	defer ts.Close()
 
 	gomock.InOrder(
-		mDB.EXPECT().Ping().Return(nil),
-		mDB.EXPECT().Ping().Return(errors.New("Connection refused")),
+		mDB.EXPECT().Ping(gomock.Any()).Return(nil),
+		mDB.EXPECT().Ping(gomock.Any()).Return(errors.New("Connection refused")),
 	)
 	testPingCases := []struct {
 		name          string

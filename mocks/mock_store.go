@@ -5,6 +5,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -35,73 +36,73 @@ func (m *MockStoreMetrics) EXPECT() *MockStoreMetricsMockRecorder {
 }
 
 // GetAllMetricsTxt mocks base method.
-func (m *MockStoreMetrics) GetAllMetricsTxt() (string, error) {
+func (m *MockStoreMetrics) GetAllMetricsTxt(arg0 context.Context) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllMetricsTxt")
+	ret := m.ctrl.Call(m, "GetAllMetricsTxt", arg0)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAllMetricsTxt indicates an expected call of GetAllMetricsTxt.
-func (mr *MockStoreMetricsMockRecorder) GetAllMetricsTxt() *gomock.Call {
+func (mr *MockStoreMetricsMockRecorder) GetAllMetricsTxt(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllMetricsTxt", reflect.TypeOf((*MockStoreMetrics)(nil).GetAllMetricsTxt))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllMetricsTxt", reflect.TypeOf((*MockStoreMetrics)(nil).GetAllMetricsTxt), arg0)
 }
 
 // GetMetric mocks base method.
-func (m *MockStoreMetrics) GetMetric(arg0, arg1 string) (interface{}, error) {
+func (m *MockStoreMetrics) GetMetric(arg0 context.Context, arg1, arg2 string) (interface{}, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMetric", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetMetric", arg0, arg1, arg2)
 	ret0, _ := ret[0].(interface{})
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMetric indicates an expected call of GetMetric.
-func (mr *MockStoreMetricsMockRecorder) GetMetric(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockStoreMetricsMockRecorder) GetMetric(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetric", reflect.TypeOf((*MockStoreMetrics)(nil).GetMetric), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetric", reflect.TypeOf((*MockStoreMetrics)(nil).GetMetric), arg0, arg1, arg2)
 }
 
 // Ping mocks base method.
-func (m *MockStoreMetrics) Ping() error {
+func (m *MockStoreMetrics) Ping(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Ping")
+	ret := m.ctrl.Call(m, "Ping", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Ping indicates an expected call of Ping.
-func (mr *MockStoreMetricsMockRecorder) Ping() *gomock.Call {
+func (mr *MockStoreMetricsMockRecorder) Ping(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStoreMetrics)(nil).Ping))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStoreMetrics)(nil).Ping), arg0)
 }
 
 // WriteBatchMetrics mocks base method.
-func (m *MockStoreMetrics) WriteBatchMetrics(arg0 []models.Metrics) error {
+func (m *MockStoreMetrics) WriteBatchMetrics(arg0 context.Context, arg1 []models.Metrics) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteBatchMetrics", arg0)
+	ret := m.ctrl.Call(m, "WriteBatchMetrics", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteBatchMetrics indicates an expected call of WriteBatchMetrics.
-func (mr *MockStoreMetricsMockRecorder) WriteBatchMetrics(arg0 interface{}) *gomock.Call {
+func (mr *MockStoreMetricsMockRecorder) WriteBatchMetrics(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchMetrics", reflect.TypeOf((*MockStoreMetrics)(nil).WriteBatchMetrics), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchMetrics", reflect.TypeOf((*MockStoreMetrics)(nil).WriteBatchMetrics), arg0, arg1)
 }
 
 // WriteMetric mocks base method.
-func (m *MockStoreMetrics) WriteMetric(arg0, arg1 string, arg2 interface{}) error {
+func (m *MockStoreMetrics) WriteMetric(arg0 context.Context, arg1, arg2 string, arg3 interface{}) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteMetric", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "WriteMetric", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteMetric indicates an expected call of WriteMetric.
-func (mr *MockStoreMetricsMockRecorder) WriteMetric(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockStoreMetricsMockRecorder) WriteMetric(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteMetric", reflect.TypeOf((*MockStoreMetrics)(nil).WriteMetric), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteMetric", reflect.TypeOf((*MockStoreMetrics)(nil).WriteMetric), arg0, arg1, arg2, arg3)
 }
