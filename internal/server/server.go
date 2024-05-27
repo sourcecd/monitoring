@@ -3,15 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -23,7 +21,11 @@ import (
 	"github.com/sourcecd/monitoring/internal/retr"
 	"github.com/sourcecd/monitoring/internal/storage"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
+
+// seconds
+const serverShutdownTime = 5
 
 type urlToMetric struct {
 	metricType  string
@@ -289,22 +291,22 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 	}
 }
 
-func Run(config ConfigArgs, sigs chan os.Signal) {
+func Run(ctx context.Context, config ConfigArgs) {
 	if err := logging.Setup(config.Loglevel); err != nil {
 		log.Fatal(err)
 	}
 
+	g, ctx := errgroup.WithContext(ctx)
+
 	var store storage.StoreMetrics
 
-	//retr context
-	ctx := context.Background()
+	//retr
 	rtr := retr.NewRetr()
 
 	//main context timeout (default 60 sec)
 	rtr.SetParams(1*time.Second, 30*time.Second, 3)
 
 	if config.DatabaseDsn != "" {
-		signal.Reset(syscall.SIGINT, syscall.SIGTERM)
 		//PGDB new
 		pgdb, err := storage.NewPgDB(config.DatabaseDsn)
 		if err != nil {
@@ -327,27 +329,43 @@ func Run(config ConfigArgs, sigs chan os.Signal) {
 		}
 
 		//save result on shutdown and throw signal
-		go func() {
-			sig := <-sigs
-			fmt.Println("saving")
+		g.Go(func() error {
+			<-ctx.Done()
+			fmt.Println("Saving file")
 			saveToFile(m, config.FileStoragePath, 0)
-			fmt.Println(sig)
-			signal.Reset(syscall.SIGINT, syscall.SIGTERM)
-			pid := os.Getpid()
-			p, err := os.FindProcess(pid)
-			if err != nil {
-				log.Fatal(err)
-			}
-			if err := p.Signal(sig); err != nil {
-				log.Fatal(err)
-			}
-		}()
+			fmt.Println("Exiting...")
+			return nil
+		})
 
 		go saveToFile(m, config.FileStoragePath, config.StoreInterval)
 
 		store = m
 	}
 
-	logging.Log.Info("Starting server on", zap.String("address", config.ServerAddr))
-	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(config.ServerAddr, chiRouter(ctx, store, config.KeyEnc, rtr))))
+	srv := http.Server{
+		Addr:    config.ServerAddr,
+		Handler: chiRouter(ctx, store, config.KeyEnc, rtr),
+	}
+
+	g.Go(func() error {
+		logging.Log.Info("Starting server on", zap.String("address", config.ServerAddr))
+		return srv.ListenAndServe()
+	})
+
+	g.Go(func() error {
+		<-ctx.Done()
+
+		ctx, cancel := context.WithTimeout(context.Background(), serverShutdownTime*time.Second)
+		defer cancel()
+
+		return srv.Shutdown(ctx)
+	})
+
+	if err := g.Wait(); err != nil {
+		if errors.Is(err, http.ErrServerClosed) {
+			logging.Log.Info("Server successful shutdown")
+			return
+		}
+		logging.Log.Fatal("Failed: ", zap.Error(err))
+	}
 }

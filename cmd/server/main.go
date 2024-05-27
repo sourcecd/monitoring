@@ -1,20 +1,31 @@
 package main
 
 import (
+	"context"
+	"log"
 	"os"
 	"os/signal"
-	"syscall"
+	"time"
 
 	"github.com/sourcecd/monitoring/internal/server"
 )
 
+// seconds
+const interruptAfter = 10
+
 func main() {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	context.AfterFunc(ctx, func() {
+		time.Sleep(interruptAfter * time.Second)
+		log.Fatal("Interrupted by shutdown time exeeded!!!")
+	})
+
 	var config server.ConfigArgs
 
 	servFlags(&config)
 	servEnv(&config)
 
-	server.Run(config, sigs)
+	server.Run(ctx, config)
 }
