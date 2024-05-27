@@ -24,6 +24,13 @@ import (
 
 const workers = 3
 
+var rtMonitorSensGauge = []string{
+	"Alloc", "BuckHashSys", "Frees", "GCSys", "HeapAlloc", "HeapIdle", "HeapInuse",
+	"HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse",
+	"MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "OtherSys", "PauseTotalNs",
+	"StackInuse", "StackSys", "Sys", "TotalAlloc", "GCCPUFraction", "NumForcedGC", "NumGC",
+}
+
 type (
 	sysMon struct {
 		mx          sync.RWMutex
@@ -48,38 +55,6 @@ type (
 		jsonMetricsSlice []models.Metrics
 	}
 )
-
-func rtMonitorSensGauge() []string {
-	return []string{
-		"Alloc",
-		"BuckHashSys",
-		"Frees",
-		"GCSys",
-		"HeapAlloc",
-		"HeapIdle",
-		"HeapInuse",
-		"HeapObjects",
-		"HeapReleased",
-		"HeapSys",
-		"LastGC",
-		"Lookups",
-		"MCacheInuse",
-		"MCacheSys",
-		"MSpanInuse",
-		"MSpanSys",
-		"Mallocs",
-		"NextGC",
-		"OtherSys",
-		"PauseTotalNs",
-		"StackInuse",
-		"StackSys",
-		"Sys",
-		"TotalAlloc",
-		"GCCPUFraction",
-		"NumForcedGC",
-		"NumGC",
-	}
-}
 
 func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 	resp, err := r.SetBody(send).Post(serverHost + "/updates/")
@@ -210,7 +185,6 @@ func Run(config ConfigArgs) {
 	timeout := 30 * time.Second
 	cpuCount, _ := cpu.Counts(true)
 
-	m := rtMonitorSensGauge()
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
 	kernelSysMetrics := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
@@ -260,7 +234,7 @@ func Run(config ConfigArgs) {
 	for {
 		// parse runtime metrics
 		<-startCoordChan1
-		parseRtm(rtm, m, jsonMetricsModel, sysMetrics)
+		parseRtm(rtm, rtMonitorSensGauge, jsonMetricsModel, sysMetrics)
 		// kern sys metrics
 		<-startCoordChan2
 		parseKernMetrics(kernelSysMetrics, jsonMetricsModel)
