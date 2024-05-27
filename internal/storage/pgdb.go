@@ -8,6 +8,7 @@ import (
 	"log"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/sourcecd/monitoring/internal/customerrors"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
@@ -16,7 +17,7 @@ const populateQuery = `create table if not exists monitoring ( id varchar(64) PR
 mtype varchar(16), delta bigint, value double precision )`
 
 type PgDB struct {
-	db      *sql.DB
+	db *sql.DB
 }
 
 func NewPgDB(dsn string) (*PgDB, error) {
@@ -55,9 +56,9 @@ func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interfac
 			}
 			return nil
 		}
-		return errors.New("wrong metric value type")
+		return customerrors.ErrWrongMetricValueType
 	default:
-		return errors.New("wrong metric type")
+		return customerrors.ErrWrongMetricType
 	}
 }
 func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error {
@@ -141,7 +142,7 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 		row := p.db.QueryRowContext(ctx, "select value from monitoring where id = $1", name)
 		if err := row.Scan(&value); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return nil, errors.New("no value")
+				return nil, customerrors.ErrNoVal
 			}
 			return nil, err
 		}
@@ -150,13 +151,13 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 		row := p.db.QueryRowContext(ctx, "select delta from monitoring where id = $1", name)
 		if err := row.Scan(&delta); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return nil, errors.New("no value")
+				return nil, customerrors.ErrNoVal
 			}
 			return nil, err
 		}
 		return metrictypes.Counter(delta), nil
 	} else {
-		return nil, errors.New("bad metric type")
+		return nil, customerrors.ErrBadMetricType
 	}
 }
 

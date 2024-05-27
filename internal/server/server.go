@@ -301,7 +301,7 @@ func Run(config ConfigArgs, sigs chan os.Signal) {
 	rtr := retr.NewRetr()
 
 	//main context timeout (default 60 sec)
-	rtr.SetParams(1*time.Second, 30 * time.Second, 3)
+	rtr.SetParams(1*time.Second, 30*time.Second, 3)
 
 	if config.DatabaseDsn != "" {
 		signal.Reset(syscall.SIGINT, syscall.SIGTERM)

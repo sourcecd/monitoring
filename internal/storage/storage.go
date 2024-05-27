@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 	"sync"
 
+	"github.com/sourcecd/monitoring/internal/customerrors"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
@@ -43,15 +43,15 @@ func (m *MemStorage) WriteMetric(ctx context.Context, mtype, name string, val in
 			m.gauge[name] = metric
 			return nil
 		}
-		return errors.New("wrong metric value type")
+		return customerrors.ErrWrongMetricValueType
 	case metrictypes.CounterType:
 		if metric, ok := val.(metrictypes.Counter); ok {
 			m.counter[name] += metric
 			return nil
 		}
-		return errors.New("wrong metric value type")
+		return customerrors.ErrWrongMetricValueType
 	default:
-		return errors.New("wrong metric type")
+		return customerrors.ErrWrongMetricType
 	}
 }
 func (m *MemStorage) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error {
@@ -91,9 +91,9 @@ func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interfa
 			return v, nil
 		}
 	} else {
-		return nil, errors.New("bad metric type")
+		return nil, customerrors.ErrBadMetricType
 	}
-	return nil, errors.New("no value")
+	return nil, customerrors.ErrNoVal
 }
 func (m *MemStorage) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	m.mx.RLock()
