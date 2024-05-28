@@ -33,7 +33,13 @@ func TestUpdateHandler(t *testing.T) {
 
 	testStorage := storage.NewMemStorage()
 
-	ts := httptest.NewServer(chiRouter(ctx, testStorage, keyenc, rtr))
+	mh := &metricHandlers{
+		ctx:     ctx,
+		storage: testStorage,
+		rtr:     rtr,
+	}
+
+	ts := httptest.NewServer(chiRouter(mh, keyenc))
 	defer ts.Close()
 
 	testCase := []struct {
@@ -138,7 +144,13 @@ func TestUpdateHandlerJSON(t *testing.T) {
 
 	testStorage := storage.NewMemStorage()
 
-	ts := httptest.NewServer(chiRouter(ctx, testStorage, keyenc, rtr))
+	mh := &metricHandlers{
+		ctx:     ctx,
+		storage: testStorage,
+		rtr:     rtr,
+	}
+
+	ts := httptest.NewServer(chiRouter(mh, keyenc))
 	defer ts.Close()
 
 	//json api
@@ -286,7 +298,13 @@ func TestPgDB(t *testing.T) {
 
 	mDB := mocks.NewMockStoreMetrics(ctrl)
 
-	ts := httptest.NewServer(chiRouter(ctx, mDB, keyenc, rtr))
+	mh := &metricHandlers{
+		ctx:     ctx,
+		storage: mDB,
+		rtr:     rtr,
+	}
+
+	ts := httptest.NewServer(chiRouter(mh, keyenc))
 	defer ts.Close()
 
 	gomock.InOrder(
