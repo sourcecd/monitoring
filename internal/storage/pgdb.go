@@ -103,7 +103,7 @@ func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	var delta int64
 	var value float64
 
-	rowsc, err := p.db.QueryContext(ctx, "select id, delta from monitoring where mtype = 'counter'")
+	rowsc, err := p.db.QueryContext(ctx, "select id, delta from monitoring where mtype = 'counter' order by id")
 	if err != nil {
 		return "", err
 	}
@@ -118,7 +118,7 @@ func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 		return "", err
 	}
 	s += "---Gauge---\n"
-	rowsg, err := p.db.QueryContext(ctx, "select id, value from monitoring where mtype = 'gauge'")
+	rowsg, err := p.db.QueryContext(ctx, "select id, value from monitoring where mtype = 'gauge' order by id")
 	if err != nil {
 		return "", err
 	}

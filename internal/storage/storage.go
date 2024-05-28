@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"sync"
 
 	"github.com/sourcecd/monitoring/internal/customerrors"
@@ -99,13 +100,24 @@ func (m *MemStorage) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
 	s := "---Counters---\n"
-	for k, v := range m.counter {
-		s += fmt.Sprintf("%v: %v\n", k, v)
+	ck := make([]string, 0, len(m.counter))
+	for k := range m.counter {
+		ck = append(ck, k)
+	}
+	sort.Strings(ck)
+	for _, k := range ck {
+		s += fmt.Sprintf("%v: %v\n", k, m.counter[k])
 	}
 	s += "---Gauge---\n"
-	for k, v := range m.gauge {
-		s += fmt.Sprintf("%v: %v\n", k, v)
+	gk := make([]string, 0, len(m.gauge))
+	for k := range m.gauge {
+		gk = append(gk, k)
 	}
+	sort.Strings(gk)
+	for _, k := range gk {
+		s += fmt.Sprintf("%v: %v\n", k, m.gauge[k])
+	}
+
 	return s, nil
 }
 
