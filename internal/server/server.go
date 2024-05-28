@@ -1,26 +1,31 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sourcecd/monitoring/internal/compression"
+	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/logging"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
+	"github.com/sourcecd/monitoring/internal/retr"
 	"github.com/sourcecd/monitoring/internal/storage"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
+
+// seconds
+const serverShutdownTime = 5
 
 type urlToMetric struct {
 	metricType  string
@@ -28,7 +33,13 @@ type urlToMetric struct {
 	metricValue string
 }
 
-func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
+type metricHandlers struct {
+	ctx     context.Context
+	storage storage.StoreMetrics
+	rtr     *retr.Retr
+}
+
+func (mh *metricHandlers) updateMetrics() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Content-Type") != "" && req.Header.Get("Content-Type") != "text/plain" {
 			http.Error(resp, fmt.Sprintf("wrong content type: %s", req.Header.Get("Content-Type")), http.StatusBadRequest)
@@ -48,7 +59,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 				http.Error(resp, "can't parse gauge metric", http.StatusBadRequest)
 				return
 			}
-			if err := storage.WriteMetric(metric.metricType, metric.metricName, metrictypes.Gauge(fl64)); err != nil {
+			if err := mh.rtr.UseRetrWM(mh.storage.WriteMetric)(mh.ctx, metric.metricType, metric.metricName, metrictypes.Gauge(fl64)); err != nil {
 				http.Error(resp, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
@@ -58,7 +69,7 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 				http.Error(resp, "can't parse counter metric", http.StatusBadRequest)
 				return
 			}
-			if err := storage.WriteMetric(metric.metricType, metric.metricName, metrictypes.Counter(i64)); err != nil {
+			if err := mh.rtr.UseRetrWM(mh.storage.WriteMetric)(mh.ctx, metric.metricType, metric.metricName, metrictypes.Counter(i64)); err != nil {
 				http.Error(resp, "can't store counter metric", http.StatusInternalServerError)
 				return
 			}
@@ -73,14 +84,14 @@ func updateMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
+func (mh *metricHandlers) getMetrics() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		resp.Header().Set("Content-Type", "text/plain")
 		mType := chi.URLParam(req, "type")
 		mVal := chi.URLParam(req, "val")
 		switch mType {
 		case metrictypes.GaugeType:
-			val, err := storage.GetMetric(metrictypes.GaugeType, mVal)
+			val, err := mh.rtr.UseRetrGetMetric(mh.storage.GetMetric)(mh.ctx, metrictypes.GaugeType, mVal)
 			if err != nil {
 				http.Error(resp, "gauge not found", http.StatusNotFound)
 				return
@@ -88,7 +99,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 			resp.WriteHeader(http.StatusOK)
 			_, _ = io.WriteString(resp, fmt.Sprintf("%v\n", val))
 		case metrictypes.CounterType:
-			val, err := storage.GetMetric(metrictypes.CounterType, mVal)
+			val, err := mh.rtr.UseRetrGetMetric(mh.storage.GetMetric)(mh.ctx, metrictypes.CounterType, mVal)
 			if err != nil {
 				http.Error(resp, "counter not found", http.StatusNotFound)
 				return
@@ -102,7 +113,7 @@ func getMetrics(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func getAll(storage storage.StoreMetrics) http.HandlerFunc {
+func (mh *metricHandlers) getAll() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		tmpl, _ := template.New("data").Parse(`
@@ -119,7 +130,7 @@ func getAll(storage storage.StoreMetrics) http.HandlerFunc {
 </pre>
 </body>
 </html>`)
-		res, err := storage.GetAllMetricsTxt()
+		res, err := mh.rtr.UseRetrGetAllM(mh.storage.GetAllMetricsTxt)(mh.ctx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -129,7 +140,7 @@ func getAll(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
+func (mh *metricHandlers) updateMetricsJSON() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var resultParsedJSON models.Metrics
 
@@ -148,13 +159,13 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 		enc := json.NewEncoder(w)
 
 		if resultParsedJSON.MType == metrictypes.GaugeType && resultParsedJSON.Value != nil && resultParsedJSON.ID != "" {
-			if err := storage.WriteMetric(resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
+			if err := mh.rtr.UseRetrWM(mh.storage.WriteMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
 				log.Println(err)
 				http.Error(w, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
 		} else if resultParsedJSON.MType == metrictypes.CounterType && resultParsedJSON.Delta != nil && resultParsedJSON.ID != "" {
-			if err := storage.WriteMetric(resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
+			if err := mh.rtr.UseRetrWM(mh.storage.WriteMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
 				log.Println(err)
 				http.Error(w, "can't store counter metric", http.StatusInternalServerError)
 				return
@@ -171,7 +182,7 @@ func updateMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
+func (mh *metricHandlers) getMetricsJSON() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var resultParsedJSON models.Metrics
 
@@ -190,7 +201,7 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 		enc := json.NewEncoder(w)
 
 		// use test method (from mentor issue iter9)
-		res, err := storage.GetMetric(resultParsedJSON.MType, resultParsedJSON.ID)
+		res, err := mh.rtr.UseRetrGetMetric(mh.storage.GetMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
@@ -211,7 +222,7 @@ func getMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func updateBatchMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
+func (mh *metricHandlers) updateBatchMetricsJSON() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var batchMettricsJSON []models.Metrics
 
@@ -229,7 +240,7 @@ func updateBatchMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 		}
 		enc := json.NewEncoder(w)
 
-		if err := storage.WriteBatchMetrics(batchMettricsJSON); err != nil {
+		if err := mh.rtr.UseRetrWMB(mh.storage.WriteBatchMetrics)(mh.ctx, batchMettricsJSON); err != nil {
 			log.Println(err)
 			http.Error(w, "error to store batch metrics", http.StatusInternalServerError)
 			return
@@ -243,9 +254,11 @@ func updateBatchMetricsJSON(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func dbPing(storage storage.StoreMetrics) http.HandlerFunc {
+func (mh *metricHandlers) dbPing() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := storage.Ping(); err != nil {
+		ctx, cancel := context.WithTimeout(mh.ctx, mh.rtr.GetTimeoutCtx())
+		defer cancel()
+		if err := mh.storage.Ping(ctx); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -254,20 +267,20 @@ func dbPing(storage storage.StoreMetrics) http.HandlerFunc {
 	}
 }
 
-func chiRouter(storage storage.StoreMetrics) chi.Router {
+func chiRouter(mh *metricHandlers, keyenc string) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(updateMetrics(storage))))
-	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(getMetrics(storage))))
-	r.Get("/", logging.WriteLogging(compression.GzipCompDecomp(getAll(storage))))
+	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.updateMetrics(), keyenc))))
+	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetrics())))
+	r.Get("/", logging.WriteLogging(compression.GzipCompDecomp(mh.getAll())))
 
 	//json
-	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(updateMetricsJSON(storage))))
-	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(getMetricsJSON(storage))))
-	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(updateBatchMetricsJSON(storage))))
+	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.updateMetricsJSON(), keyenc))))
+	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetricsJSON())))
+	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.updateBatchMetricsJSON(), keyenc))))
 
 	//ping
-	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(dbPing(storage))))
+	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(mh.dbPing())))
 
 	return r
 }
@@ -284,15 +297,22 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 	}
 }
 
-func Run(config ConfigArgs, sigs chan os.Signal) {
+func Run(ctx context.Context, config ConfigArgs) {
 	if err := logging.Setup(config.Loglevel); err != nil {
 		log.Fatal(err)
 	}
 
+	g, ctx := errgroup.WithContext(ctx)
+
 	var store storage.StoreMetrics
 
+	//retr
+	rtr := retr.NewRetr()
+
+	//main context timeout (default 60 sec)
+	rtr.SetParams(1*time.Second, 30*time.Second, 3)
+
 	if config.DatabaseDsn != "" {
-		signal.Reset(syscall.SIGINT, syscall.SIGTERM)
 		//PGDB new
 		pgdb, err := storage.NewPgDB(config.DatabaseDsn)
 		if err != nil {
@@ -300,11 +320,7 @@ func Run(config ConfigArgs, sigs chan os.Signal) {
 		}
 		defer pgdb.CloseDB()
 
-		//main context timeout (default 60 sec)
-		pgdb.SetTimeout(30 * time.Second)
-		pgdb.SetBackoff(1*time.Second, 3)
-
-		if err := pgdb.PopulateDB(); err != nil {
+		if err := rtr.UseRetrPopDB(pgdb.PopulateDB)(ctx); err != nil {
 			log.Fatal(err)
 		}
 
@@ -319,27 +335,49 @@ func Run(config ConfigArgs, sigs chan os.Signal) {
 		}
 
 		//save result on shutdown and throw signal
-		go func() {
-			sig := <-sigs
-			fmt.Println("saving")
+		g.Go(func() error {
+			<-ctx.Done()
+			fmt.Println("Saving file")
 			saveToFile(m, config.FileStoragePath, 0)
-			fmt.Println(sig)
-			signal.Reset(syscall.SIGINT, syscall.SIGTERM)
-			pid := os.Getpid()
-			p, err := os.FindProcess(pid)
-			if err != nil {
-				log.Fatal(err)
-			}
-			if err := p.Signal(sig); err != nil {
-				log.Fatal(err)
-			}
-		}()
+			fmt.Println("Exiting...")
+			return nil
+		})
 
 		go saveToFile(m, config.FileStoragePath, config.StoreInterval)
 
 		store = m
 	}
 
-	logging.Log.Info("Starting server on", zap.String("address", config.ServerAddr))
-	logging.Log.Fatal("Failed to start server", zap.Error(http.ListenAndServe(config.ServerAddr, chiRouter(store))))
+	mh := &metricHandlers{
+		ctx:     ctx,
+		storage: store,
+		rtr:     rtr,
+	}
+
+	srv := http.Server{
+		Addr:    config.ServerAddr,
+		Handler: chiRouter(mh, config.KeyEnc),
+	}
+
+	g.Go(func() error {
+		logging.Log.Info("Starting server on", zap.String("address", config.ServerAddr))
+		return srv.ListenAndServe()
+	})
+
+	g.Go(func() error {
+		<-ctx.Done()
+
+		ctx, cancel := context.WithTimeout(context.Background(), serverShutdownTime*time.Second)
+		defer cancel()
+
+		return srv.Shutdown(ctx)
+	})
+
+	if err := g.Wait(); err != nil {
+		if errors.Is(err, http.ErrServerClosed) {
+			logging.Log.Info("Server successful shutdown")
+			return
+		}
+		logging.Log.Fatal("Failed: ", zap.Error(err))
+	}
 }

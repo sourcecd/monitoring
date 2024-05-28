@@ -2,23 +2,25 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"sync"
 
+	"github.com/sourcecd/monitoring/internal/customerrors"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
 
 type StoreMetrics interface {
-	WriteMetric(mType, name string, val interface{}) error
-	WriteBatchMetrics(metrics []models.Metrics) error
-	GetAllMetricsTxt() (string, error)
-	GetMetric(mType, name string) (interface{}, error)
-	Ping() error
+	WriteMetric(ctx context.Context, mType, name string, val interface{}) error
+	WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error
+	GetAllMetricsTxt(ctx context.Context) (string, error)
+	GetMetric(ctx context.Context, mType, name string) (interface{}, error)
+	Ping(ctx context.Context) error
 }
 
 // inmemory
@@ -29,11 +31,11 @@ type MemStorage struct {
 }
 
 // TODO remove
-func (m *MemStorage) Ping() error {
+func (m *MemStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (m *MemStorage) WriteMetric(mtype, name string, val interface{}) error {
+func (m *MemStorage) WriteMetric(ctx context.Context, mtype, name string, val interface{}) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	switch mtype {
@@ -42,18 +44,18 @@ func (m *MemStorage) WriteMetric(mtype, name string, val interface{}) error {
 			m.gauge[name] = metric
 			return nil
 		}
-		return errors.New("wrong metric value type")
+		return customerrors.ErrWrongMetricValueType
 	case metrictypes.CounterType:
 		if metric, ok := val.(metrictypes.Counter); ok {
 			m.counter[name] += metric
 			return nil
 		}
-		return errors.New("wrong metric value type")
+		return customerrors.ErrWrongMetricValueType
 	default:
-		return errors.New("wrong metric type")
+		return customerrors.ErrWrongMetricType
 	}
 }
-func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
+func (m *MemStorage) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	// i think we don't break all batch if one metric failed in batch (use continue)
@@ -78,7 +80,7 @@ func (m *MemStorage) WriteBatchMetrics(metrics []models.Metrics) error {
 	}
 	return nil
 }
-func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
+func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interface{}, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
 	if mType == metrictypes.GaugeType {
@@ -90,21 +92,32 @@ func (m *MemStorage) GetMetric(mType, name string) (interface{}, error) {
 			return v, nil
 		}
 	} else {
-		return nil, errors.New("bad metric type")
+		return nil, customerrors.ErrBadMetricType
 	}
-	return nil, errors.New("no value")
+	return nil, customerrors.ErrNoVal
 }
-func (m *MemStorage) GetAllMetricsTxt() (string, error) {
+func (m *MemStorage) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
 	s := "---Counters---\n"
-	for k, v := range m.counter {
-		s += fmt.Sprintf("%v: %v\n", k, v)
+	ck := make([]string, 0, len(m.counter))
+	for k := range m.counter {
+		ck = append(ck, k)
+	}
+	sort.Strings(ck)
+	for _, k := range ck {
+		s += fmt.Sprintf("%v: %v\n", k, m.counter[k])
 	}
 	s += "---Gauge---\n"
-	for k, v := range m.gauge {
-		s += fmt.Sprintf("%v: %v\n", k, v)
+	gk := make([]string, 0, len(m.gauge))
+	for k := range m.gauge {
+		gk = append(gk, k)
 	}
+	sort.Strings(gk)
+	for _, k := range gk {
+		s += fmt.Sprintf("%v: %v\n", k, m.gauge[k])
+	}
+
 	return s, nil
 }
 

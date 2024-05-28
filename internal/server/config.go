@@ -7,4 +7,5 @@ type ConfigArgs struct {
 	FileStoragePath string
 	Restore         bool
 	DatabaseDsn     string
+	KeyEnc          string
 }

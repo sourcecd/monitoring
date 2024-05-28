@@ -5,10 +5,11 @@ import (
 )
 
 func main() {
+	var config agent.ConfigArgs
 
-	servFlags()
-	servEnv()
+	servFlags(&config)
+	servEnv(&config)
 
-	agent.Run(serverAddr, reportInterval, pollInterval)
+	agent.Run(config)
 
 }
