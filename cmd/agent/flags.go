@@ -16,10 +16,16 @@ func servEnv(config *agent.ConfigArgs) {
 	p := os.Getenv("POLL_INTERVAL")
 	k := os.Getenv("KEY")
 	l := os.Getenv("RATE_LIMIT")
+	d := os.Getenv("PPROF_AGENT_ADDRESS")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
 			config.ServerAddr = s
+		}
+	}
+	if d != "" {
+		if len(strings.Split(d, ":")) == 2 {
+			config.PprofAddr = d
 		}
 	}
 	if r != "" {
@@ -54,5 +60,6 @@ func servFlags(config *agent.ConfigArgs) {
 	flag.IntVar(&config.PollInterval, "p", 2, "metrics poll interval")
 	flag.StringVar(&config.KeyEnc, "k", "", "encrypted key")
 	flag.IntVar(&config.RateLimit, "l", 1, "send ratelimit")
+	flag.StringVar(&config.PprofAddr, "d", "", "pprof server bind addres and port")
 	flag.Parse()
 }
