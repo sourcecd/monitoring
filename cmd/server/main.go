@@ -18,11 +18,6 @@ import (
 const interruptAfter = 10
 
 func main() {
-	//profile
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-	
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -35,6 +30,13 @@ func main() {
 
 	servFlags(&config)
 	servEnv(&config)
+
+	//profile
+	if config.PprofAddr != "" {
+		go func() {
+			log.Println(http.ListenAndServe(config.PprofAddr, nil))
+		}()
+	}
 
 	server.Run(ctx, config)
 }

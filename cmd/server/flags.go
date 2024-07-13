@@ -17,11 +17,17 @@ func servEnv(config *server.ConfigArgs) {
 	f := os.Getenv("FILE_STORAGE_PATH")
 	r := os.Getenv("RESTORE")
 	d := os.Getenv("DATABASE_DSN")
+	p := os.Getenv("PPROF_SERVER_ADDRESS")
 	k := os.Getenv("KEY")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
 			config.ServerAddr = s
+		}
+	}
+	if p != "" {
+		if len(strings.Split(p, ":")) == 2 {
+			config.PprofAddr = p
 		}
 	}
 	if l != "" {
@@ -61,5 +67,6 @@ func servFlags(config *server.ConfigArgs) {
 	//dsn example: host=localhost database=monitoring
 	flag.StringVar(&config.DatabaseDsn, "d", "", "pg db connect address")
 	flag.StringVar(&config.KeyEnc, "k", "", "encrypted key")
+	flag.StringVar(&config.PprofAddr, "p", "", "Pprof server bind addres and port")
 	flag.Parse()
 }
