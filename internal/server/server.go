@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/sourcecd/monitoring/internal/compression"
 	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/logging"
@@ -20,8 +23,6 @@ import (
 	"github.com/sourcecd/monitoring/internal/models"
 	"github.com/sourcecd/monitoring/internal/retr"
 	"github.com/sourcecd/monitoring/internal/storage"
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 // seconds

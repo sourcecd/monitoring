@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sethvargo/go-retry"
+
 	"github.com/sourcecd/monitoring/internal/customerrors"
 	"github.com/sourcecd/monitoring/internal/models"
 )

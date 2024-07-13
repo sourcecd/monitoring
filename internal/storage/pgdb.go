@@ -8,6 +8,7 @@ import (
 	"log"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
 	"github.com/sourcecd/monitoring/internal/customerrors"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
