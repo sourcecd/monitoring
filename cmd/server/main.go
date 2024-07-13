@@ -8,12 +8,21 @@ import (
 	"time"
 
 	"github.com/sourcecd/monitoring/internal/server"
+
+	"net/http"
+	//profile
+	_ "net/http/pprof"
 )
 
 // seconds
 const interruptAfter = 10
 
 func main() {
+	//profile
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+	
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
