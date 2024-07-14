@@ -10,6 +10,7 @@ import (
 	"github.com/sourcecd/monitoring/internal/server"
 )
 
+// Parse env args.
 func servEnv(config *server.ConfigArgs) {
 	s := os.Getenv("ADDRESS")
 	l := os.Getenv("LOG_LEVEL")
@@ -58,6 +59,7 @@ func servEnv(config *server.ConfigArgs) {
 	}
 }
 
+// Parse cmdline args.
 func servFlags(config *server.ConfigArgs) {
 	flag.StringVar(&config.ServerAddr, "a", "localhost:8080", "Server bind addres and port")
 	flag.StringVar(&config.Loglevel, "l", "info", "Log level for server")

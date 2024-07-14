@@ -1,3 +1,5 @@
+// Agent command for sending monitoring metrics.
+// Uses http api.
 package main
 
 import (
@@ -5,24 +7,28 @@ import (
 
 	"github.com/sourcecd/monitoring/internal/agent"
 
-	//profile
 	"net/http"
+	// Profile module.
 	_ "net/http/pprof"
 )
 
 func main() {
+	// Main config.
 	var config agent.ConfigArgs
 
+	// Parse cmdline flags.
 	servFlags(&config)
+	// Parse env options.
 	servEnv(&config)
 
-	//profile
+	// Enable profile server.
 	if config.PprofAddr != "" {
 		go func() {
 			log.Println(http.ListenAndServe(config.PprofAddr, nil))
 		}()
 	}
 
+	// Run main program.
 	agent.Run(config)
 
 }

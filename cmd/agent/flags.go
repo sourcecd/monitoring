@@ -10,6 +10,7 @@ import (
 	"github.com/sourcecd/monitoring/internal/agent"
 )
 
+// Parse env args.
 func servEnv(config *agent.ConfigArgs) {
 	s := os.Getenv("ADDRESS")
 	r := os.Getenv("REPORT_INTERVAL")
@@ -54,6 +55,7 @@ func servEnv(config *agent.ConfigArgs) {
 	}
 }
 
+// Parse cmdline args.
 func servFlags(config *agent.ConfigArgs) {
 	flag.StringVar(&config.ServerAddr, "a", "localhost:8080", "server address")
 	flag.IntVar(&config.ReportInterval, "r", 10, "metrics report interval")
