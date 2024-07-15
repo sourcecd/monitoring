@@ -53,7 +53,7 @@ func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interfac
 			}
 			return nil
 		}
-		return errors.New("wrong metric value type")
+		return customerrors.ErrWrongMetricValueType
 	case metrictypes.CounterType:
 		if metric, ok := val.(metrictypes.Counter); ok {
 			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
