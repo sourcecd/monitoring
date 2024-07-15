@@ -1,3 +1,4 @@
+// Storage interfaces and methods for store metrics.
 package storage
 
 import (
@@ -15,29 +16,32 @@ import (
 	"github.com/sourcecd/monitoring/internal/models"
 )
 
+// Main metrics storage interface.
 type StoreMetrics interface {
-	WriteMetric(ctx context.Context, mType, name string, val interface{}) error
-	WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error
-	GetAllMetricsTxt(ctx context.Context) (string, error)
-	GetMetric(ctx context.Context, mType, name string) (interface{}, error)
-	Ping(ctx context.Context) error
+	WriteMetric(ctx context.Context, mType, name string, val interface{}) error // method for write single metric to storage
+	WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error      // method for write a lot of metrics to storage (batch)
+	GetAllMetricsTxt(ctx context.Context) (string, error)                       // method for fetch all metrics from storage
+	GetMetric(ctx context.Context, mType, name string) (interface{}, error)     // method for fetch metric value
+	Ping(ctx context.Context) error                                             // method for healthcheck storage
 }
 
-// inmemory
+// In-memory storage.
 type MemStorage struct {
 	mx      sync.RWMutex
-	gauge   map[string]metrictypes.Gauge
-	counter map[string]metrictypes.Counter
+	gauge   map[string]metrictypes.Gauge   // for save gauge metrics
+	counter map[string]metrictypes.Counter // for save counter metrics
 }
 
-// TODO remove
+// Implementation Ping method of storage interface (in-memory storage).
 func (m *MemStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
+// Implementation WriteMetric method of storage interface (in-memory storage).
 func (m *MemStorage) WriteMetric(ctx context.Context, mtype, name string, val interface{}) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
+	// selecting metric type
 	switch mtype {
 	case metrictypes.GaugeType:
 		if metric, ok := val.(metrictypes.Gauge); ok {
@@ -55,11 +59,14 @@ func (m *MemStorage) WriteMetric(ctx context.Context, mtype, name string, val in
 		return customerrors.ErrWrongMetricType
 	}
 }
+
+// Implementation WriteBatchMetrics method of storage interface (in-memory storage).
 func (m *MemStorage) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
 	// i think we don't break all batch if one metric failed in batch (use continue)
 	for _, v := range metrics {
+		// selecting metric type
 		switch v.MType {
 		case metrictypes.GaugeType:
 			if v.Value == nil || v.ID == "" {
@@ -80,9 +87,12 @@ func (m *MemStorage) WriteBatchMetrics(ctx context.Context, metrics []models.Met
 	}
 	return nil
 }
+
+// Implementation GetMetric method of storage interface (in-memory storage).
 func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interface{}, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
+	// selecting metric type
 	if mType == metrictypes.GaugeType {
 		if v, ok := m.gauge[name]; ok {
 			return v, nil
@@ -96,6 +106,8 @@ func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interfa
 	}
 	return nil, customerrors.ErrNoVal
 }
+
+// Implementation GetAllMetricsTxt method of storage interface (in-memory storage).
 func (m *MemStorage) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
@@ -121,6 +133,7 @@ func (m *MemStorage) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	return s, nil
 }
 
+// Method for saving metrics data to file.
 func (m *MemStorage) SaveToFile(fname string) error {
 	f, err := os.Create(fname)
 	if err != nil {
@@ -153,6 +166,7 @@ func (m *MemStorage) SaveToFile(fname string) error {
 	return nil
 }
 
+// Method for reading metrics data from file.
 func (m *MemStorage) ReadFromFile(fname string) error {
 	f, err := os.Open(fname)
 	if err != nil {
@@ -173,6 +187,7 @@ func (m *MemStorage) ReadFromFile(fname string) error {
 		if err := json.Unmarshal(scanner.Bytes(), metric); err != nil {
 			return err
 		}
+		// selecting metric type
 		switch metric.MType {
 		case metrictypes.CounterType:
 			m.counter[metric.ID] = metrictypes.Counter(*metric.Delta)
@@ -186,6 +201,7 @@ func (m *MemStorage) ReadFromFile(fname string) error {
 	return nil
 }
 
+// Init in-memory storage.
 func NewMemStorage() *MemStorage {
 	return &MemStorage{gauge: make(map[string]metrictypes.Gauge), counter: make(map[string]metrictypes.Counter)}
 }
