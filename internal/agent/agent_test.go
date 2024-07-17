@@ -61,7 +61,7 @@ func TestUpdateSysKernMetrics(t *testing.T) {
 }
 
 func TestSendFunc(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, r.Method, "POST")
 
 		body, err := io.ReadAll(r.Body)

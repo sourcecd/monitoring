@@ -347,3 +347,42 @@ func TestPgDB(t *testing.T) {
 	}
 
 }
+
+func TestGetAll(t *testing.T) {
+	getHTMLTemplate := `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="counters" content="width=device-width, initial-scale=1.0" />
+	<title>Counters</title>
+</head>
+<body>
+<pre>
+---Counters---
+---Gauge---
+
+</pre>
+</body>
+</html>`
+	ctx := context.Background()
+	storage := storage.NewMemStorage()
+	retrier := retr.NewRetr()
+	mh := metricHandlers{
+		ctx:     ctx,
+		storage: storage,
+		rtr:     retrier,
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	// GetAll function
+	testHandleFunc := mh.getAll()
+	testHandleFunc(response, request)
+
+	resp := response.Result()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, getHTMLTemplate, string(body))
+}
