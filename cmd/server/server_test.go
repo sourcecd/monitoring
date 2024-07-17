@@ -35,6 +35,7 @@ func TestServerCmdArgs(t *testing.T) {
 
 func TestServerEnvArgs(t *testing.T) {
 	var config server.ConfigArgs
+	// set test env args
 	os.Setenv("ADDRESS", "localhost:9090")
 	os.Setenv("LOG_LEVEL", "debug")
 	os.Setenv("STORE_INTERVAL", "600")
@@ -46,6 +47,7 @@ func TestServerEnvArgs(t *testing.T) {
 
 	servEnv(&config)
 
+	// check env args
 	require.Equal(t, config.ServerAddr, "localhost:9090")
 	require.Equal(t, config.Loglevel, "debug")
 	require.Equal(t, config.StoreInterval, 600)
