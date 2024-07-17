@@ -14,6 +14,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/retr"
 	"github.com/sourcecd/monitoring/internal/storage"
 	"github.com/sourcecd/monitoring/mocks"
@@ -385,4 +386,30 @@ func TestGetAll(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, getHTMLTemplate, string(body))
+}
+
+func TestUpdateBatchMetricsJSON(t *testing.T) {
+	ctx := context.Background()
+	storage := storage.NewMemStorage()
+	retrier := retr.NewRetr()
+	mh := metricHandlers{
+		ctx:     ctx,
+		storage: storage,
+		rtr:     retrier,
+	}
+	testRequest := `[{"type": "gauge", "id": "testmetric", "value": 0.1}]`
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testRequest))
+	request.Header.Set("Content-Type", "application/json")
+
+	testHandleFunc := mh.updateBatchMetricsJSON()
+	testHandleFunc(response, request)
+
+	res := response.Result()
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	iface, err := storage.GetMetric(ctx, "gauge", "testmetric")
+	require.NoError(t, err)
+	require.Equal(t, metrictypes.Gauge(0.1), iface.(metrictypes.Gauge))
 }
