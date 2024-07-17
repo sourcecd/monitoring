@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -70,13 +71,40 @@ func TestSendFunc(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("testRequestDone"))
 	}))
-	
+
 	client := resty.New()
 	request := client.R()
 
+	// send func
 	response, err := send(request, "testRequest", srv.URL)
 	require.NoError(t, err)
 	require.Equal(t, "testRequestDone", string(response.Body()))
 	require.Equal(t, http.StatusOK, response.StatusCode())
 	srv.Close()
+}
+
+func TestParseRtm(t *testing.T) {
+	m := &MemStats{}
+	jsonMetrics := &jsonModelsMetrics{}
+	sysMon := &sysMon{}
+
+	runtime.ReadMemStats(&m.MemStats)
+
+	// parseRtm func
+	parseRtm(m, rtMonitorSensGauge, jsonMetrics, sysMon)
+
+	require.Greater(t, m.Alloc, uint64(0))
+	require.Greater(t, len(jsonMetrics.jsonMetricsSlice), 0)
+}
+
+func TestParseKernMetrics(t *testing.T) {
+	cpuCount, _ := cpu.Counts(true)
+	m := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
+	j := &jsonModelsMetrics{}
+
+	// parse kernel metrics
+	parseKernMetrics(m, j)
+
+	require.Greater(t, len(m.CPUutilization), 0)
+	require.Greater(t, len(j.jsonMetricsSlice), 0)
 }
