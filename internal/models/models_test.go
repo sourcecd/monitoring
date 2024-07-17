@@ -7,7 +7,7 @@ func TestXxx(t *testing.T) {
 	i := int64(1)
 	f := float64(0.1)
 	_ = Metrics{
-		ID: "1",
+		ID:    "1",
 		MType: "test",
 		Delta: &i,
 		Value: &f,
