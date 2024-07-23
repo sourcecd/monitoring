@@ -196,6 +196,8 @@ func worker(id int, jobs <-chan string, timeout time.Duration, serverHost string
 
 // Main function for running agent engine.
 func Run(config ConfigArgs) {
+	reportInterval := time.Duration(config.ReportInterval) * time.Second
+	pollInterval := time.Duration(config.PollInterval) * time.Second
 	startCoordChan1 := make(chan struct{})
 	startCoordChan2 := make(chan struct{})
 	ratelimit := config.RateLimit
@@ -236,7 +238,7 @@ func Run(config ConfigArgs) {
 				close(startCoordChan1)
 				open = false
 			}
-			time.Sleep(time.Duration(config.PollInterval) * time.Second)
+			time.Sleep(pollInterval)
 		}
 	}()
 
@@ -249,7 +251,7 @@ func Run(config ConfigArgs) {
 				close(startCoordChan2)
 				open = false
 			}
-			time.Sleep(time.Duration(config.PollInterval) * time.Second)
+			time.Sleep(pollInterval)
 		}
 	}()
 
@@ -285,6 +287,6 @@ func Run(config ConfigArgs) {
 		sysMetrics.mx.Unlock()
 
 		// metrics report interval
-		time.Sleep(time.Duration(config.ReportInterval) * time.Second)
+		time.Sleep(reportInterval)
 	}
 }
