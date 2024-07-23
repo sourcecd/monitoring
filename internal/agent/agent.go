@@ -1,3 +1,4 @@
+// Agent engine (and API) for sending monitoring metrics.
 package agent
 
 import (
@@ -17,13 +18,16 @@ import (
 	"github.com/sethvargo/go-retry"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+
 	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
 
+// Number of workers pool for sending metrics.
 const workers = 3
 
+// Sensors list for fetching monitoring metrics.
 var rtMonitorSensGauge = []string{
 	"Alloc", "BuckHashSys", "Frees", "GCSys", "HeapAlloc", "HeapIdle", "HeapInuse",
 	"HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse",
@@ -32,17 +36,20 @@ var rtMonitorSensGauge = []string{
 }
 
 type (
+	// Type of system metrics includes interval of polling and some rand value.
 	sysMon struct {
 		mx          sync.RWMutex
 		pollCount   metrictypes.Counter
 		randomValue metrictypes.Gauge
 	}
 
+	// Type of memory metrics, fetched from runtime (local) library.
 	MemStats struct {
 		mx sync.RWMutex
 		runtime.MemStats
 	}
 
+	// Type of base system metrics like CPU and Memory usage.
 	kernelMetrics struct {
 		mx sync.RWMutex
 		TotalMemory,
@@ -50,12 +57,14 @@ type (
 		CPUutilization []metrictypes.Gauge
 	}
 
+	// Type of collection gauge and counter metrics.
 	jsonModelsMetrics struct {
 		mx               sync.RWMutex
 		jsonMetricsSlice []models.Metrics
 	}
 )
 
+// send function for sending monitoring requests.
 func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 	resp, err := r.SetBody(send).Post(serverHost + "/updates/")
 	if err != nil {
@@ -67,6 +76,7 @@ func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 	return resp, err
 }
 
+// updateMetrics function for fetch runtime system metrics.
 func updateMetrics(memstat *MemStats, sysmetrics *sysMon) {
 	memstat.mx.Lock()
 	defer memstat.mx.Unlock()
@@ -80,6 +90,7 @@ func updateMetrics(memstat *MemStats, sysmetrics *sysMon) {
 	sysmetrics.randomValue = metrictypes.Gauge(rand.New(rand.NewSource(time.Now().UnixNano())).Float64())
 }
 
+// encodeJSON function for json metric encode.
 func encodeJSON(jsMetrics *jsonModelsMetrics) (string, error) {
 	jsMetrics.mx.RLock()
 	defer jsMetrics.mx.RUnlock()
@@ -88,6 +99,7 @@ func encodeJSON(jsMetrics *jsonModelsMetrics) (string, error) {
 	return string(jRes), err
 }
 
+// updateSysKernMetrics function for fetch cpu and memory metrics.
 func updateSysKernMetrics(m *kernelMetrics) {
 	vmstat, _ := mem.VirtualMemory()
 	cpuU, _ := cpu.Percent(time.Second, true)
@@ -102,10 +114,12 @@ func updateSysKernMetrics(m *kernelMetrics) {
 	}
 }
 
+// parseRtm function for parse runtime metrics and format it to pre-json struct.
 func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *jsonModelsMetrics, sysM *sysMon) {
 	rtm.mx.RLock()
 	defer rtm.mx.RUnlock()
 
+	// use reflect for update struct field by name
 	rtmVal := reflect.ValueOf(rtm).Elem()
 	for i := 0; i < len(targerRtm); i++ {
 		v := rtmVal.FieldByName(targerRtm[i])
@@ -127,6 +141,7 @@ func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *jsonModelsMetrics,
 	addJSONModel(jsonMetrics, "RandomValue", metrictypes.GaugeType, nil, (*float64)(&randomValue))
 }
 
+// parseKernMetrics function for parse cpu and memory metrics and format it to pre-json struct.
 func parseKernMetrics(km *kernelMetrics, j *jsonModelsMetrics) {
 	km.mx.RLock()
 	defer km.mx.RUnlock()
@@ -142,6 +157,7 @@ func parseKernMetrics(km *kernelMetrics, j *jsonModelsMetrics) {
 	}
 }
 
+// addJSONModel function for collect parsed metrics to spectial metrics structure.
 func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *float64) {
 	g.mx.Lock()
 	defer g.mx.Unlock()
@@ -154,11 +170,13 @@ func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *f
 	})
 }
 
+// function for create parallel workers which send metrics to server.
 func worker(id int, jobs <-chan string, timeout time.Duration, serverHost string, keyenc string, r *resty.Request, errRes chan<- error) {
 	for j := range jobs {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
 
+		// using retry and request sign function
 		err := retry.Do(ctx, backoff, func(ctx context.Context) error {
 			if _, err := cryptandsign.SignNew(send, keyenc)(r, j, serverHost); err != nil {
 				return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
@@ -176,7 +194,10 @@ func worker(id int, jobs <-chan string, timeout time.Duration, serverHost string
 	}
 }
 
+// Main function for running agent engine.
 func Run(config ConfigArgs) {
+	reportInterval := time.Duration(config.ReportInterval) * time.Second
+	pollInterval := time.Duration(config.PollInterval) * time.Second
 	startCoordChan1 := make(chan struct{})
 	startCoordChan2 := make(chan struct{})
 	ratelimit := config.RateLimit
@@ -185,14 +206,17 @@ func Run(config ConfigArgs) {
 	timeout := 30 * time.Second
 	cpuCount, _ := cpu.Counts(true)
 
+	// init metrics structs
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
 	kernelSysMetrics := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
 	jsonMetricsModel := &jsonModelsMetrics{}
 
+	// init channels for workers
 	jobsQueue := make(chan string, ratelimit)
 	jobsErr := make(chan error, ratelimit)
 
+	// init resty client
 	client := resty.New()
 	r := client.R().SetHeader("Content-Type", "application/json")
 
@@ -205,7 +229,7 @@ func Run(config ConfigArgs) {
 		go worker(w, jobsQueue, timeout, serverHost, config.KeyEnc, r, jobsErr)
 	}
 
-	// poll metrics
+	// poll runtime metrics
 	go func() {
 		open := true
 		for {
@@ -214,7 +238,7 @@ func Run(config ConfigArgs) {
 				close(startCoordChan1)
 				open = false
 			}
-			time.Sleep(time.Duration(config.PollInterval) * time.Second)
+			time.Sleep(pollInterval)
 		}
 	}()
 
@@ -227,7 +251,7 @@ func Run(config ConfigArgs) {
 				close(startCoordChan2)
 				open = false
 			}
-			time.Sleep(time.Duration(config.PollInterval) * time.Second)
+			time.Sleep(pollInterval)
 		}
 	}()
 
@@ -235,13 +259,13 @@ func Run(config ConfigArgs) {
 		// parse runtime metrics
 		<-startCoordChan1
 		parseRtm(rtm, rtMonitorSensGauge, jsonMetricsModel, sysMetrics)
-		// kern sys metrics
+		// parse kern sys metrics
 		<-startCoordChan2
 		parseKernMetrics(kernelSysMetrics, jsonMetricsModel)
 
 		// parse full json
 		strToSend, err := encodeJSON(jsonMetricsModel)
-		// clear on each iteration
+		// clear metrics structure on each iteration
 		jsonMetricsModel.mx.Lock()
 		jsonMetricsModel.jsonMetricsSlice = []models.Metrics{}
 		jsonMetricsModel.mx.Unlock()
@@ -250,17 +274,19 @@ func Run(config ConfigArgs) {
 			continue
 		}
 
+		// add metrics payload to send queue
 		jobsQueue <- strToSend
 
 		if err := <-jobsErr; err != nil {
 			continue
 		}
 
+		// reset polling counter when metrics send procedure is success
 		sysMetrics.mx.Lock()
 		sysMetrics.pollCount = 0
 		sysMetrics.mx.Unlock()
 
-		// report interval
-		time.Sleep(time.Duration(config.ReportInterval) * time.Second)
+		// metrics report interval
+		time.Sleep(reportInterval)
 	}
 }

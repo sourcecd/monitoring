@@ -8,18 +8,22 @@ import (
 	"log"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
 	"github.com/sourcecd/monitoring/internal/customerrors"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
 
+// Sql query for create monitoring table in postgres DB.
 const populateQuery = `create table if not exists monitoring ( id varchar(64) PRIMARY KEY, 
 mtype varchar(16), delta bigint, value double precision )`
 
+// Singleton type for connect and work with postgres DB.
 type PgDB struct {
 	db *sql.DB
 }
 
+// Init postgres DB.
 func NewPgDB(dsn string) (*PgDB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -28,6 +32,7 @@ func NewPgDB(dsn string) (*PgDB, error) {
 	return &PgDB{db: db}, nil
 }
 
+// Method for create monitoring table.
 func (p *PgDB) PopulateDB(ctx context.Context) error {
 	if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
 		return fmt.Errorf("populate failed: %s", err.Error())
@@ -35,7 +40,9 @@ func (p *PgDB) PopulateDB(ctx context.Context) error {
 	return nil
 }
 
+// Implementation WriteMetric method of storage interface (postgres DB storage).
 func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interface{}) error {
+	// selecting metric type
 	switch mtype {
 	case metrictypes.GaugeType:
 		if metric, ok := val.(metrictypes.Gauge); ok {
@@ -46,7 +53,7 @@ func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interfac
 			}
 			return nil
 		}
-		return errors.New("wrong metric value type")
+		return customerrors.ErrWrongMetricValueType
 	case metrictypes.CounterType:
 		if metric, ok := val.(metrictypes.Counter); ok {
 			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
@@ -61,6 +68,8 @@ func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interfac
 		return customerrors.ErrWrongMetricType
 	}
 }
+
+// Implementation WriteBatchMetrics method of storage interface (postgres DB storage).
 func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error {
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -70,6 +79,7 @@ func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) 
 
 	// i think we don't break all batch if one metric failed in batch (use continue)
 	for _, v := range metrics {
+		// selecting metric type
 		switch v.MType {
 		case metrictypes.GaugeType:
 			if v.Value == nil || v.ID == "" {
@@ -97,6 +107,8 @@ func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) 
 	}
 	return tx.Commit()
 }
+
+// Implementation GetAllMetricsTxt method of storage interface (postgres DB storage).
 func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	s := "---Counters---\n"
 	var id string
@@ -135,9 +147,12 @@ func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 
 	return s, nil
 }
+
+// Implementation GetMetric method of storage interface (postgres DB storage).
 func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, error) {
 	var value float64
 	var delta int64
+	// selecting metric type
 	if mType == metrictypes.GaugeType {
 		row := p.db.QueryRowContext(ctx, "select value from monitoring where id = $1", name)
 		if err := row.Scan(&value); err != nil {
@@ -161,9 +176,12 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 	}
 }
 
+// Implementation Ping method of storage interface (postgres DB storage).
 func (p *PgDB) Ping(ctx context.Context) error {
 	return p.db.PingContext(ctx)
 }
+
+// Close connection to database.
 func (p *PgDB) CloseDB() error {
 	return p.db.Close()
 }

@@ -1,3 +1,4 @@
+// Server engine (and API) for compute and stores monitoring metrics.
 package server
 
 import (
@@ -13,6 +14,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/sourcecd/monitoring/internal/compression"
 	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/logging"
@@ -20,25 +24,26 @@ import (
 	"github.com/sourcecd/monitoring/internal/models"
 	"github.com/sourcecd/monitoring/internal/retr"
 	"github.com/sourcecd/monitoring/internal/storage"
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
-// seconds
+// Time in seconds for gracefull shutdown webserver.
 const serverShutdownTime = 5
 
+// urlToMetric struct for collect url metrics parameters.
 type urlToMetric struct {
 	metricType  string
 	metricName  string
 	metricValue string
 }
 
+// Main type for all metrics methods (get/update, etc...).
 type metricHandlers struct {
-	ctx     context.Context
-	storage storage.StoreMetrics
-	rtr     *retr.Retr
+	ctx     context.Context      // handlers context
+	storage storage.StoreMetrics // metric storage interface
+	rtr     *retr.Retr           // pointer to retryer type for api methods
 }
 
+// updateMetrics api method for store single plaintext metric, sending in api url parameters.
 func (mh *metricHandlers) updateMetrics() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Content-Type") != "" && req.Header.Get("Content-Type") != "text/plain" {
@@ -52,6 +57,7 @@ func (mh *metricHandlers) updateMetrics() http.HandlerFunc {
 			metricValue: chi.URLParam(req, "value"),
 		}
 
+		// selecting what type of metric (gauge/count) will be stored
 		switch metric.metricType {
 		case metrictypes.GaugeType:
 			fl64, err := strconv.ParseFloat(metric.metricValue, 64)
@@ -84,11 +90,14 @@ func (mh *metricHandlers) updateMetrics() http.HandlerFunc {
 	}
 }
 
+// getMetrics api method for get single plaintext metric (gauge/count) value.
 func (mh *metricHandlers) getMetrics() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		resp.Header().Set("Content-Type", "text/plain")
 		mType := chi.URLParam(req, "type")
 		mVal := chi.URLParam(req, "val")
+
+		// selecting what type of metric (gauge/count) will be getting
 		switch mType {
 		case metrictypes.GaugeType:
 			val, err := mh.rtr.UseRetrGetMetric(mh.storage.GetMetric)(mh.ctx, metrictypes.GaugeType, mVal)
@@ -113,6 +122,8 @@ func (mh *metricHandlers) getMetrics() http.HandlerFunc {
 	}
 }
 
+// getAll method for fetching all metrics on single html page.
+// Using go html template package.
 func (mh *metricHandlers) getAll() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
@@ -140,6 +151,7 @@ func (mh *metricHandlers) getAll() http.HandlerFunc {
 	}
 }
 
+// updateMetricsJSON api method for update single metric (gauge/count).
 func (mh *metricHandlers) updateMetricsJSON() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var resultParsedJSON models.Metrics
@@ -158,6 +170,7 @@ func (mh *metricHandlers) updateMetricsJSON() http.HandlerFunc {
 		}
 		enc := json.NewEncoder(w)
 
+		// selecting metric type (gauge/count) for store metric
 		if resultParsedJSON.MType == metrictypes.GaugeType && resultParsedJSON.Value != nil && resultParsedJSON.ID != "" {
 			if err := mh.rtr.UseRetrWM(mh.storage.WriteMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
 				log.Println(err)
@@ -182,6 +195,7 @@ func (mh *metricHandlers) updateMetricsJSON() http.HandlerFunc {
 	}
 }
 
+// getMetricsJSON api method for get single json metric (gauge/count) value.
 func (mh *metricHandlers) getMetricsJSON() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var resultParsedJSON models.Metrics
@@ -200,12 +214,13 @@ func (mh *metricHandlers) getMetricsJSON() http.HandlerFunc {
 		}
 		enc := json.NewEncoder(w)
 
-		// use test method (from mentor issue iter9)
 		res, err := mh.rtr.UseRetrGetMetric(mh.storage.GetMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
+
+		// selecting metric type by type assertion
 		if g, ok := res.(metrictypes.Gauge); ok {
 			resultParsedJSON.Value = (*float64)(&g)
 		} else if c, ok := res.(metrictypes.Counter); ok {
@@ -222,6 +237,8 @@ func (mh *metricHandlers) getMetricsJSON() http.HandlerFunc {
 	}
 }
 
+// updateBatchMetricsJSON api method for batch update metrics (gauge/count).
+// Update a lot of metrics in one api request.
 func (mh *metricHandlers) updateBatchMetricsJSON() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var batchMettricsJSON []models.Metrics
@@ -254,8 +271,10 @@ func (mh *metricHandlers) updateBatchMetricsJSON() http.HandlerFunc {
 	}
 }
 
+// dbPing method for checking metric storage availability.
 func (mh *metricHandlers) dbPing() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// check timeout context
 		ctx, cancel := context.WithTimeout(mh.ctx, mh.rtr.GetTimeoutCtx())
 		defer cancel()
 		if err := mh.storage.Ping(ctx); err != nil {
@@ -267,6 +286,8 @@ func (mh *metricHandlers) dbPing() http.HandlerFunc {
 	}
 }
 
+// HTTP router for send requests to special handler/method.
+// Using middleware functions to apply logging, compression, request sign.
 func chiRouter(mh *metricHandlers, keyenc string) chi.Router {
 	r := chi.NewRouter()
 
@@ -285,6 +306,7 @@ func chiRouter(mh *metricHandlers, keyenc string) chi.Router {
 	return r
 }
 
+// saveToFile function for periodic save in-memory storage metrics.
 func saveToFile(m *storage.MemStorage, fname string, duration int) {
 	for {
 		time.Sleep(time.Second * time.Duration(duration))
@@ -297,23 +319,26 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 	}
 }
 
+// Main function for coordination and running server engine with HTTP handlers.
 func Run(ctx context.Context, config ConfigArgs) {
+	// configure logging level for log subsystem
 	if err := logging.Setup(config.Loglevel); err != nil {
 		log.Fatal(err)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
 
+	// init abstract storage interface
 	var store storage.StoreMetrics
 
-	//retr
+	// init retrier
 	rtr := retr.NewRetr()
 
-	//main context timeout (default 60 sec)
+	// main context timeout (default 30 sec)
 	rtr.SetParams(1*time.Second, 30*time.Second, 3)
 
+	// select db engine as metric storage (postgres or in-memory)
 	if config.DatabaseDsn != "" {
-		//PGDB new
 		pgdb, err := storage.NewPgDB(config.DatabaseDsn)
 		if err != nil {
 			log.Fatal(err)
@@ -334,7 +359,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 			}
 		}
 
-		//save result on shutdown and throw signal
+		// save metrics result on shutdown (in-memory storage)
 		g.Go(func() error {
 			<-ctx.Done()
 			fmt.Println("Saving file")
@@ -343,27 +368,32 @@ func Run(ctx context.Context, config ConfigArgs) {
 			return nil
 		})
 
+		// periodic save metrics for in-memory storage
 		go saveToFile(m, config.FileStoragePath, config.StoreInterval)
 
 		store = m
 	}
 
+	// init metric handlers
 	mh := &metricHandlers{
 		ctx:     ctx,
 		storage: store,
 		rtr:     rtr,
 	}
 
+	// init HTTP server config
 	srv := http.Server{
 		Addr:    config.ServerAddr,
 		Handler: chiRouter(mh, config.KeyEnc),
 	}
 
+	// starting http server
 	g.Go(func() error {
 		logging.Log.Info("Starting server on", zap.String("address", config.ServerAddr))
 		return srv.ListenAndServe()
 	})
 
+	// HTTP server gracefull shutdown
 	g.Go(func() error {
 		<-ctx.Done()
 
@@ -373,6 +403,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 		return srv.Shutdown(ctx)
 	})
 
+	// final server engine shutdown
 	if err := g.Wait(); err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
 			logging.Log.Info("Server successful shutdown")

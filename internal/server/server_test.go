@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"errors"
+	"html/template"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +16,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/retr"
 	"github.com/sourcecd/monitoring/internal/storage"
 	"github.com/sourcecd/monitoring/mocks"
@@ -346,4 +349,73 @@ func TestPgDB(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetAll(t *testing.T) {
+	var buf bytes.Buffer
+	tmpl, _ := template.New("data").Parse(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="counters" content="width=device-width, initial-scale=1.0" />
+	<title>Counters</title>
+</head>
+<body>
+<pre>
+{{ .}}
+</pre>
+</body>
+</html>`)
+
+	expectedTestData := `---Counters---
+---Gauge---
+`
+	ctx := context.Background()
+	storage := storage.NewMemStorage()
+	retrier := retr.NewRetr()
+	mh := metricHandlers{
+		ctx:     ctx,
+		storage: storage,
+		rtr:     retrier,
+	}
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	// GetAll function
+	testHandleFunc := mh.getAll()
+	testHandleFunc(response, request)
+
+	resp := response.Result()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	_ = tmpl.Execute(&buf, expectedTestData)
+	require.Equal(t, buf.String(), string(body))
+}
+
+func TestUpdateBatchMetricsJSON(t *testing.T) {
+	ctx := context.Background()
+	storage := storage.NewMemStorage()
+	retrier := retr.NewRetr()
+	mh := metricHandlers{
+		ctx:     ctx,
+		storage: storage,
+		rtr:     retrier,
+	}
+	testRequest := `[{"type": "gauge", "id": "testmetric", "value": 0.1}]`
+
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testRequest))
+	request.Header.Set("Content-Type", "application/json")
+
+	testHandleFunc := mh.updateBatchMetricsJSON()
+	testHandleFunc(response, request)
+
+	res := response.Result()
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	iface, err := storage.GetMetric(ctx, "gauge", "testmetric")
+	require.NoError(t, err)
+	require.Equal(t, metrictypes.Gauge(0.1), iface.(metrictypes.Gauge))
 }

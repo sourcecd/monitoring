@@ -1,3 +1,4 @@
+// Logging subsystem for metrics server and metrics agent.
 package logging
 
 import (
@@ -7,31 +8,37 @@ import (
 	"go.uber.org/zap"
 )
 
+// Init base zap logger variable.
 var Log *zap.Logger = zap.NewNop()
 
 type (
+	// Type for collect HTTP status code and response size.
 	responseData struct {
 		status int
 		size   int
 	}
 
+	// Middleware type for process logging on web server response.
 	loggingResponseWriter struct {
 		http.ResponseWriter
 		responseData *responseData
 	}
 )
 
+// Middleware method for support ResponseWriter interface (Write).
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(b)
 	r.responseData.size += size
 	return size, err
 }
 
+// Middleware method for support ResponseWriter interface (WriteHeader).
 func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.ResponseWriter.WriteHeader(statusCode)
 	r.responseData.status = statusCode
 }
 
+// Init zap logging.
 func Setup(level string) error {
 	lvl, err := zap.ParseAtomicLevel(level)
 	if err != nil {
@@ -51,6 +58,7 @@ func Setup(level string) error {
 	return nil
 }
 
+// Main middleware function for wrap HandlerFunc and writing logs.
 func WriteLogging(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

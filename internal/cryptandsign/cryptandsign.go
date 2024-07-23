@@ -1,3 +1,4 @@
+// Package for signature request and response.
 package cryptandsign
 
 import (
@@ -13,24 +14,29 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+// Type of hash algoritm.
 const signHeaderType = "HashSHA256"
 
 type (
+	// Type of metric agent function for send metric.
 	AgentSendFunc func(r *resty.Request, send, serverHost string) (*resty.Response, error)
 
+	// HTTP response code.
 	responseData struct {
-		respCode int
+		respCode int // http code
 	}
 
+	// Middleware type for signing response from server.
 	signResponseWriter struct {
-		wr              http.ResponseWriter
-		respData        *responseData
-		sign            hash.Hash
-		headersSetDone  chan bool
-		headersSendDone chan bool
+		wr              http.ResponseWriter // middleware ResponseWriter interface
+		respData        *responseData       // http code
+		sign            hash.Hash           // type of hashing
+		headersSetDone  chan bool           // special channel for control headers set
+		headersSendDone chan bool           // special channel for control headers send
 	}
 )
 
+// Middleware Write method for sign HTTP response.
 func (s *signResponseWriter) Write(b []byte) (int, error) {
 	s.sign.Write(b)
 	res := s.sign.Sum(nil)
@@ -41,6 +47,7 @@ func (s *signResponseWriter) Write(b []byte) (int, error) {
 	return size, err
 }
 
+// Middleware WriteHeader method for sign HTTP response.
 func (s *signResponseWriter) WriteHeader(statusCode int) {
 	go func() {
 		<-s.headersSetDone
@@ -50,10 +57,12 @@ func (s *signResponseWriter) WriteHeader(statusCode int) {
 	s.respData.respCode = statusCode
 }
 
+// Middleware Header method for sign HTTP response.
 func (s *signResponseWriter) Header() http.Header {
 	return s.wr.Header()
 }
 
+// Main function for signature check.
 func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hashSignStr := r.Header.Get(signHeaderType)
@@ -102,11 +111,13 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 	}
 }
 
+// Main sign function for signing requests.
 func SignNew(s AgentSendFunc, seckey string) AgentSendFunc {
 	return func(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 		if seckey == "" {
 			return s(r, send, serverHost)
 		}
+		// using hmac method
 		hm := hmac.New(sha256.New, []byte(seckey))
 		hm.Write([]byte(send))
 		reshm := hm.Sum(nil)
