@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"errors"
+	"html/template"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -350,7 +352,8 @@ func TestPgDB(t *testing.T) {
 }
 
 func TestGetAll(t *testing.T) {
-	getHTMLTemplate := `
+	var buf bytes.Buffer
+	tmpl, _ := template.New("data").Parse(`
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -360,12 +363,14 @@ func TestGetAll(t *testing.T) {
 </head>
 <body>
 <pre>
----Counters---
----Gauge---
-
+{{ .}}
 </pre>
 </body>
-</html>`
+</html>`)
+
+	expectedTestData := `---Counters---
+---Gauge---
+`
 	ctx := context.Background()
 	storage := storage.NewMemStorage()
 	retrier := retr.NewRetr()
@@ -385,7 +390,8 @@ func TestGetAll(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	require.Equal(t, getHTMLTemplate, string(body))
+	_ = tmpl.Execute(&buf, expectedTestData)
+	require.Equal(t, buf.String(), string(body))
 }
 
 func TestUpdateBatchMetricsJSON(t *testing.T) {
