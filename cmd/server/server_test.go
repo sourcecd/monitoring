@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/sourcecd/monitoring/internal/server"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestServerCmdArgs(t *testing.T) {
@@ -23,14 +23,14 @@ func TestServerCmdArgs(t *testing.T) {
 	servFlags(&config)
 
 	// check flags
-	require.Equal(t, config.ServerAddr, "localhost:8080")
-	require.Equal(t, config.Loglevel, "info")
-	require.Equal(t, config.StoreInterval, 300)
-	require.Equal(t, config.FileStoragePath, "/tmp/metrics-db.json")
-	require.Equal(t, config.Restore, true)
-	require.Equal(t, config.DatabaseDsn, "host=localhost database=monitoring")
-	require.Equal(t, config.KeyEnc, "seckey")
-	require.Equal(t, config.PprofAddr, "localhost:6060")
+	assert.Equal(t, config.ServerAddr, "localhost:8080")
+	assert.Equal(t, config.Loglevel, "info")
+	assert.Equal(t, config.StoreInterval, 300)
+	assert.Equal(t, config.FileStoragePath, "/tmp/metrics-db.json")
+	assert.Equal(t, config.Restore, true)
+	assert.Equal(t, config.DatabaseDsn, "host=localhost database=monitoring")
+	assert.Equal(t, config.KeyEnc, "seckey")
+	assert.Equal(t, config.PprofAddr, "localhost:6060")
 }
 
 func TestServerEnvArgs(t *testing.T) {
@@ -48,12 +48,12 @@ func TestServerEnvArgs(t *testing.T) {
 	servEnv(&config)
 
 	// check env args
-	require.Equal(t, config.ServerAddr, "localhost:9090")
-	require.Equal(t, config.Loglevel, "debug")
-	require.Equal(t, config.StoreInterval, 600)
-	require.Equal(t, config.FileStoragePath, "/home/metric.json")
-	require.Equal(t, config.Restore, false)
-	require.Equal(t, config.DatabaseDsn, "database=monitoring")
-	require.Equal(t, config.KeyEnc, "seckey2")
-	require.Equal(t, config.PprofAddr, "localhost:7070")
+	assert.Equal(t, config.ServerAddr, "localhost:9090")
+	assert.Equal(t, config.Loglevel, "debug")
+	assert.Equal(t, config.StoreInterval, 600)
+	assert.Equal(t, config.FileStoragePath, "/home/metric.json")
+	assert.Equal(t, config.Restore, false)
+	assert.Equal(t, config.DatabaseDsn, "database=monitoring")
+	assert.Equal(t, config.KeyEnc, "seckey2")
+	assert.Equal(t, config.PprofAddr, "localhost:7070")
 }

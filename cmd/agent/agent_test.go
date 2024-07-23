@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/sourcecd/monitoring/internal/agent"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAgentCmdArgs(t *testing.T) {
@@ -21,12 +21,12 @@ func TestAgentCmdArgs(t *testing.T) {
 	servFlags(&config)
 
 	// check flags
-	require.Equal(t, config.ServerAddr, "localhost:8080")
-	require.Equal(t, config.ReportInterval, 10)
-	require.Equal(t, config.PollInterval, 2)
-	require.Equal(t, config.RateLimit, 1)
-	require.Equal(t, config.KeyEnc, "seckey")
-	require.Equal(t, config.PprofAddr, "localhost:6060")
+	assert.Equal(t, config.ServerAddr, "localhost:8080")
+	assert.Equal(t, config.ReportInterval, 10)
+	assert.Equal(t, config.PollInterval, 2)
+	assert.Equal(t, config.RateLimit, 1)
+	assert.Equal(t, config.KeyEnc, "seckey")
+	assert.Equal(t, config.PprofAddr, "localhost:6060")
 }
 
 func TestAgentEnvArgs(t *testing.T) {
@@ -42,10 +42,10 @@ func TestAgentEnvArgs(t *testing.T) {
 	servEnv(&config)
 
 	// check env args
-	require.Equal(t, config.ServerAddr, "localhost:9090")
-	require.Equal(t, config.ReportInterval, 20)
-	require.Equal(t, config.PollInterval, 6)
-	require.Equal(t, config.RateLimit, 3)
-	require.Equal(t, config.KeyEnc, "seckey2")
-	require.Equal(t, config.PprofAddr, "localhost:7070")
+	assert.Equal(t, config.ServerAddr, "localhost:9090")
+	assert.Equal(t, config.ReportInterval, 20)
+	assert.Equal(t, config.PollInterval, 6)
+	assert.Equal(t, config.RateLimit, 3)
+	assert.Equal(t, config.KeyEnc, "seckey2")
+	assert.Equal(t, config.PprofAddr, "localhost:7070")
 }
