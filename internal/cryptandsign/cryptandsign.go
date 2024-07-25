@@ -1,4 +1,4 @@
-// Package for signature request and response.
+// Package cryptandsign for signature request and response.
 package cryptandsign
 
 import (
@@ -18,7 +18,7 @@ import (
 const signHeaderType = "HashSHA256"
 
 type (
-	// Type of metric agent function for send metric.
+	// AgentSendFunc type of metric agent function for send metric.
 	AgentSendFunc func(r *resty.Request, send, serverHost string) (*resty.Response, error)
 
 	// HTTP response code.
@@ -62,7 +62,7 @@ func (s *signResponseWriter) Header() http.Header {
 	return s.wr.Header()
 }
 
-// Main function for signature check.
+// SignCheck main function for signature check.
 func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hashSignStr := r.Header.Get(signHeaderType)
@@ -111,7 +111,7 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 	}
 }
 
-// Main sign function for signing requests.
+// SignNew main sign function for signing requests.
 func SignNew(s AgentSendFunc, seckey string) AgentSendFunc {
 	return func(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 		if seckey == "" {

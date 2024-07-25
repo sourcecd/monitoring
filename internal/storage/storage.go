@@ -1,4 +1,4 @@
-// Storage interfaces and methods for store metrics.
+// Package storage interfaces and methods for store metrics.
 package storage
 
 import (
@@ -16,7 +16,7 @@ import (
 	"github.com/sourcecd/monitoring/internal/models"
 )
 
-// Main metrics storage interface.
+// StoreMetrics main metrics storage interface.
 type StoreMetrics interface {
 	WriteMetric(ctx context.Context, mType, name string, val interface{}) error // method for write single metric to storage
 	WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error      // method for write a lot of metrics to storage (batch)
@@ -25,19 +25,19 @@ type StoreMetrics interface {
 	Ping(ctx context.Context) error                                             // method for healthcheck storage
 }
 
-// In-memory storage.
+// MemStorage in-memory storage.
 type MemStorage struct {
 	mx      sync.RWMutex
 	gauge   map[string]metrictypes.Gauge   // for save gauge metrics
 	counter map[string]metrictypes.Counter // for save counter metrics
 }
 
-// Implementation Ping method of storage interface (in-memory storage).
+// Ping implementation Ping method of storage interface (in-memory storage).
 func (m *MemStorage) Ping(ctx context.Context) error {
 	return nil
 }
 
-// Implementation WriteMetric method of storage interface (in-memory storage).
+// WriteMetric implementation WriteMetric method of storage interface (in-memory storage).
 func (m *MemStorage) WriteMetric(ctx context.Context, mtype, name string, val interface{}) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
@@ -60,7 +60,7 @@ func (m *MemStorage) WriteMetric(ctx context.Context, mtype, name string, val in
 	}
 }
 
-// Implementation WriteBatchMetrics method of storage interface (in-memory storage).
+// WriteBatchMetrics implementation WriteBatchMetrics method of storage interface (in-memory storage).
 func (m *MemStorage) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error {
 	m.mx.Lock()
 	defer m.mx.Unlock()
@@ -88,7 +88,7 @@ func (m *MemStorage) WriteBatchMetrics(ctx context.Context, metrics []models.Met
 	return nil
 }
 
-// Implementation GetMetric method of storage interface (in-memory storage).
+// GetMetric implementation GetMetric method of storage interface (in-memory storage).
 func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interface{}, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
@@ -107,7 +107,7 @@ func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interfa
 	return nil, customerrors.ErrNoVal
 }
 
-// Implementation GetAllMetricsTxt method of storage interface (in-memory storage).
+// GetAllMetricsTxt implementation GetAllMetricsTxt method of storage interface (in-memory storage).
 func (m *MemStorage) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	m.mx.RLock()
 	defer m.mx.RUnlock()
@@ -133,7 +133,7 @@ func (m *MemStorage) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	return s, nil
 }
 
-// Method for saving metrics data to file.
+// SaveToFile method for saving metrics data to file.
 func (m *MemStorage) SaveToFile(fname string) error {
 	f, err := os.Create(fname)
 	if err != nil {
@@ -166,7 +166,7 @@ func (m *MemStorage) SaveToFile(fname string) error {
 	return nil
 }
 
-// Method for reading metrics data from file.
+// ReadFromFile method for reading metrics data from file.
 func (m *MemStorage) ReadFromFile(fname string) error {
 	f, err := os.Open(fname)
 	if err != nil {
@@ -201,7 +201,7 @@ func (m *MemStorage) ReadFromFile(fname string) error {
 	return nil
 }
 
-// Init in-memory storage.
+// NewMemStorage init in-memory storage.
 func NewMemStorage() *MemStorage {
 	return &MemStorage{gauge: make(map[string]metrictypes.Gauge), counter: make(map[string]metrictypes.Counter)}
 }

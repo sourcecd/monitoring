@@ -1,7 +1,7 @@
-// Metrics model (struct).
+// Package models metrics model (struct).
 package models
 
-// Type of metrics model.
+// Metrics type of metrics model.
 type Metrics struct {
 	ID    string   `json:"id"`              // metric name
 	MType string   `json:"type"`            // parameter, recives value gauge or counter

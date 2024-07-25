@@ -1,3 +1,4 @@
+// Package storage postgress implementation
 package storage
 
 import (
@@ -18,12 +19,12 @@ import (
 const populateQuery = `create table if not exists monitoring ( id varchar(64) PRIMARY KEY, 
 mtype varchar(16), delta bigint, value double precision )`
 
-// Singleton type for connect and work with postgres DB.
+// PgDB singleton type for connect and work with postgres DB.
 type PgDB struct {
 	db *sql.DB
 }
 
-// Init postgres DB.
+// NewPgDB init postgres DB.
 func NewPgDB(dsn string) (*PgDB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -32,7 +33,7 @@ func NewPgDB(dsn string) (*PgDB, error) {
 	return &PgDB{db: db}, nil
 }
 
-// Method for create monitoring table.
+// PopulateDB method for create monitoring table.
 func (p *PgDB) PopulateDB(ctx context.Context) error {
 	if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
 		return fmt.Errorf("populate failed: %s", err.Error())
@@ -40,7 +41,7 @@ func (p *PgDB) PopulateDB(ctx context.Context) error {
 	return nil
 }
 
-// Implementation WriteMetric method of storage interface (postgres DB storage).
+// WriteMetric implementation WriteMetric method of storage interface (postgres DB storage).
 func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interface{}) error {
 	// selecting metric type
 	switch mtype {
@@ -69,7 +70,7 @@ func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interfac
 	}
 }
 
-// Implementation WriteBatchMetrics method of storage interface (postgres DB storage).
+// WriteBatchMetrics implementation WriteBatchMetrics method of storage interface (postgres DB storage).
 func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error {
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -108,7 +109,7 @@ func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) 
 	return tx.Commit()
 }
 
-// Implementation GetAllMetricsTxt method of storage interface (postgres DB storage).
+// GetAllMetricsTxt implementation GetAllMetricsTxt method of storage interface (postgres DB storage).
 func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	s := "---Counters---\n"
 	var id string
@@ -148,7 +149,7 @@ func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	return s, nil
 }
 
-// Implementation GetMetric method of storage interface (postgres DB storage).
+// GetMetric implementation GetMetric method of storage interface (postgres DB storage).
 func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, error) {
 	var value float64
 	var delta int64
@@ -176,12 +177,12 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 	}
 }
 
-// Implementation Ping method of storage interface (postgres DB storage).
+// Ping implementation Ping method of storage interface (postgres DB storage).
 func (p *PgDB) Ping(ctx context.Context) error {
 	return p.db.PingContext(ctx)
 }
 
-// Close connection to database.
+// CloseDB close connection to database.
 func (p *PgDB) CloseDB() error {
 	return p.db.Close()
 }

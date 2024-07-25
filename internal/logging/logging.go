@@ -1,4 +1,4 @@
-// Logging subsystem for metrics server and metrics agent.
+// Package logging subsystem for metrics server and metrics agent.
 package logging
 
 import (
@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Init base zap logger variable.
+// Log init base zap logger variable.
 var Log *zap.Logger = zap.NewNop()
 
 type (
@@ -38,7 +38,7 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.responseData.status = statusCode
 }
 
-// Init zap logging.
+// Setup init zap logging.
 func Setup(level string) error {
 	lvl, err := zap.ParseAtomicLevel(level)
 	if err != nil {
@@ -58,7 +58,7 @@ func Setup(level string) error {
 	return nil
 }
 
-// Main middleware function for wrap HandlerFunc and writing logs.
+// WriteLogging main middleware function for wrap HandlerFunc and writing logs.
 func WriteLogging(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

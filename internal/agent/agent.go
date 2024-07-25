@@ -1,4 +1,4 @@
-// Agent engine (and API) for sending monitoring metrics.
+// Package agent engine (and API) for sending monitoring metrics.
 package agent
 
 import (
@@ -43,7 +43,7 @@ type (
 		randomValue metrictypes.Gauge
 	}
 
-	// Type of memory metrics, fetched from runtime (local) library.
+	// MemStats type of memory metrics, fetched from runtime (local) library.
 	MemStats struct {
 		mx sync.RWMutex
 		runtime.MemStats
@@ -194,7 +194,7 @@ func worker(id int, jobs <-chan string, timeout time.Duration, serverHost string
 	}
 }
 
-// Main function for running agent engine.
+// Run main function for running agent engine.
 func Run(config ConfigArgs) {
 	reportInterval := time.Duration(config.ReportInterval) * time.Second
 	pollInterval := time.Duration(config.PollInterval) * time.Second

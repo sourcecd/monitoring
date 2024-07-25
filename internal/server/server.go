@@ -1,4 +1,4 @@
-// Server engine (and API) for compute and stores monitoring metrics.
+// Package server engine (and API) for compute and stores monitoring metrics.
 package server
 
 import (
@@ -319,7 +319,7 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 	}
 }
 
-// Main function for coordination and running server engine with HTTP handlers.
+// Run main function for coordination and running server engine with HTTP handlers.
 func Run(ctx context.Context, config ConfigArgs) {
 	// configure logging level for log subsystem
 	if err := logging.Setup(config.Loglevel); err != nil {

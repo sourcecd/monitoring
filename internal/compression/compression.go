@@ -1,4 +1,4 @@
-// Package for compression HTTP data.
+// Package compression for compression HTTP data.
 package compression
 
 import (
@@ -78,7 +78,7 @@ func (c *compressReader) Close() error {
 	return c.zr.Close()
 }
 
-// Main function for compress/decompress HTTP requests/response.
+// GzipCompDecomp main function for compress/decompress HTTP requests/response.
 func GzipCompDecomp(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
