@@ -1,4 +1,4 @@
-// Service specified error types.
+// Package customerrors service specified error types.
 package customerrors
 
 import "errors"

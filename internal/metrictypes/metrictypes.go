@@ -1,4 +1,4 @@
-// Package with metric types.
+// Package metrictypes with metric types.
 package metrictypes
 
 const (
@@ -9,8 +9,8 @@ const (
 )
 
 type (
-	// Base type for gauge metric - float64
+	// Gauge base type for gauge metric - float64
 	Gauge float64
-	// Base type for counter metric - int64
+	// Counter base type for counter metric - int64
 	Counter int64
 )
