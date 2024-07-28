@@ -70,9 +70,9 @@ const saStaticCheckPrefix = "SA"
 // Analyzers lists
 var (
 	allAnalyzers, basicAnalizers, saStaticCheckAnalizers, customStaticCheckAnalizers []*analysis.Analyzer
-	allCustomAnalyzers []*lint.Analyzer
-	
-	customNamesStaticCheckAnalyzers = map[string]bool {
+	allCustomAnalyzers                                                               []*lint.Analyzer
+
+	customNamesStaticCheckAnalyzers = map[string]bool{
 		"S1000": true,
 		"S1001": true,
 		"S1005": true,
@@ -92,8 +92,8 @@ var (
 	// osExit analyzer
 	osExitAstAnalyze = &analysis.Analyzer{
 		Name: "osexitcheck",
-		Doc: "Check os.Exit in main",
-		Run: osExitChecker,
+		Doc:  "Check os.Exit in main",
+		Run:  osExitChecker,
 	}
 )
 
