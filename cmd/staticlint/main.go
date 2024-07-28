@@ -109,7 +109,7 @@ func osExitChecker(pass *analysis.Pass) (interface{}, error) {
 				if s, ok := n.(*ast.SelectorExpr); ok && mainFound && s.Sel.Name == "Exit" {
 					if i, ok := s.X.(*ast.Ident); ok && i.Name == "os" {
 						mainFound = false
-						pass.Reportf(i.NamePos, "os.Exit found in main/main")
+						pass.Reportf(i.NamePos, "direct os.Exit found in main/main")
 					}
 				}
 				return true
