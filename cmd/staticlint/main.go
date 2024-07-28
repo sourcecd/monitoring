@@ -1,6 +1,11 @@
+// Package for static analyze code
 package main
 
 import (
+	"strings"
+
+	"github.com/gordonklaus/ineffassign/pkg/ineffassign"
+	"github.com/kisielk/errcheck/errcheck"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/multichecker"
 	"golang.org/x/tools/go/analysis/passes/appends"
@@ -51,11 +56,42 @@ import (
 	"golang.org/x/tools/go/analysis/passes/unusedresult"
 	"golang.org/x/tools/go/analysis/passes/unusedwrite"
 	"golang.org/x/tools/go/analysis/passes/usesgenerics"
+	"honnef.co/go/tools/analysis/lint"
+	"honnef.co/go/tools/quickfix"
+	"honnef.co/go/tools/simple"
+	"honnef.co/go/tools/staticcheck"
+	"honnef.co/go/tools/stylecheck"
 )
 
-var basicAnalizers []*analysis.Analyzer
+// Analyze "SA..." prefix of staticcheck analyzers
+const saStaticCheckPrefix = "SA"
 
+// Analyzers lists
+var (
+	allAnalyzers, basicAnalizers, saStaticCheckAnalizers, customStaticCheckAnalizers []*analysis.Analyzer
+	allCustomAnalyzers []*lint.Analyzer
+	
+	customNamesStaticCheckAnalyzers = map[string]bool {
+		"S1000": true,
+		"S1001": true,
+		"S1005": true,
+		"S1011": true,
+		"S1012": true,
+
+		"ST1000": true,
+		"ST1003": true,
+		"ST1005": true,
+
+		"QF1002": true,
+		"QF1003": true,
+		"QF1004": true,
+		"QF1012": true,
+	}
+)
+
+// Main func for process analyzers
 func main() {
+	// Basic analyzers aka "go vet..."
 	basicAnalizers = []*analysis.Analyzer{
 		appends.Analyzer,
 		asmdecl.Analyzer,
@@ -107,5 +143,31 @@ func main() {
 		usesgenerics.Analyzer,
 	}
 
-	multichecker.Main(basicAnalizers...)
+	// Add specific "^SA" analizers from staticcheck package
+	for _, v := range staticcheck.Analyzers {
+		if strings.HasPrefix(v.Analyzer.Name, saStaticCheckPrefix) {
+			saStaticCheckAnalizers = append(saStaticCheckAnalizers, v.Analyzer)
+		}
+	}
+
+	// Add custom staticcheck analyzers
+	allCustomAnalyzers = append(allCustomAnalyzers, simple.Analyzers...)
+	allCustomAnalyzers = append(allCustomAnalyzers, stylecheck.Analyzers...)
+	allCustomAnalyzers = append(allCustomAnalyzers, quickfix.Analyzers...)
+	for _, v := range allCustomAnalyzers {
+		if customNamesStaticCheckAnalyzers[v.Analyzer.Name] {
+			customStaticCheckAnalizers = append(customStaticCheckAnalizers, v.Analyzer)
+		}
+	}
+
+	// Add public analizers (errcheck - github.com/kisielk/errcheck and github.com/gordonklaus/ineffassign/pkg/ineffassign)
+	customStaticCheckAnalizers = append(customStaticCheckAnalizers, errcheck.Analyzer, ineffassign.Analyzer)
+
+	// Union all analyzers
+	allAnalyzers = append(allAnalyzers, basicAnalizers...)
+	allAnalyzers = append(allAnalyzers, saStaticCheckAnalizers...)
+	allAnalyzers = append(allAnalyzers, customStaticCheckAnalizers...)
+
+	// Multichecker analyzers run
+	multichecker.Main(allAnalyzers...)
 }
