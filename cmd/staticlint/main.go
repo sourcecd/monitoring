@@ -114,6 +114,7 @@ func osExitChecker(pass *analysis.Pass) (interface{}, error) {
 				}
 				return true
 			})
+			return nil, nil
 		}
 	}
 	return nil, nil
