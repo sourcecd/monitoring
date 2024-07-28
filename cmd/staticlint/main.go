@@ -2,6 +2,7 @@
 package main
 
 import (
+	"go/ast"
 	"strings"
 
 	"github.com/gordonklaus/ineffassign/pkg/ineffassign"
@@ -87,7 +88,36 @@ var (
 		"QF1004": true,
 		"QF1012": true,
 	}
+
+	// osExit analyzer
+	osExitAstAnalyze = &analysis.Analyzer{
+		Name: "osexitcheck",
+		Doc: "Check os.Exit in main",
+		Run: osExitChecker,
+	}
 )
+
+// osExitChecker function try to found os.Exit in main function
+func osExitChecker(pass *analysis.Pass) (interface{}, error) {
+	mainFound := false
+	for _, v := range pass.Files {
+		if v.Name.Name == "main" {
+			ast.Inspect(v, func(n ast.Node) bool {
+				if f, ok := n.(*ast.FuncDecl); ok && f.Name.Name == "main" {
+					mainFound = true
+				}
+				if s, ok := n.(*ast.SelectorExpr); ok && mainFound && s.Sel.Name == "Exit" {
+					if i, ok := s.X.(*ast.Ident); ok && i.Name == "os" {
+						mainFound = false
+						pass.Reportf(i.NamePos, "os.Exit found in main/main")
+					}
+				}
+				return true
+			})
+		}
+	}
+	return nil, nil
+}
 
 // Main func for process analyzers
 func main() {
@@ -162,6 +192,9 @@ func main() {
 
 	// Add public analizers (errcheck - github.com/kisielk/errcheck and github.com/gordonklaus/ineffassign/pkg/ineffassign)
 	customStaticCheckAnalizers = append(customStaticCheckAnalizers, errcheck.Analyzer, ineffassign.Analyzer)
+
+	// Add os.Exit analyzer
+	customStaticCheckAnalizers = append(customStaticCheckAnalizers, osExitAstAnalyze)
 
 	// Union all analyzers
 	allAnalyzers = append(allAnalyzers, basicAnalizers...)
