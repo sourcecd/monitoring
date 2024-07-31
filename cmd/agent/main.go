@@ -13,6 +13,9 @@ import (
 )
 
 func main() {
+	// Print Build args
+	printBuildFlags()
+
 	// Main config.
 	var config agent.ConfigArgs
 
