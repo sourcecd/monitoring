@@ -154,7 +154,8 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 	var value float64
 	var delta int64
 	// selecting metric type
-	if mType == metrictypes.GaugeType {
+	switch mType {
+	case metrictypes.GaugeType:
 		row := p.db.QueryRowContext(ctx, "select value from monitoring where id = $1", name)
 		if err := row.Scan(&value); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -163,7 +164,7 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 			return nil, err
 		}
 		return metrictypes.Gauge(value), nil
-	} else if mType == metrictypes.CounterType {
+	case metrictypes.CounterType:
 		row := p.db.QueryRowContext(ctx, "select delta from monitoring where id = $1", name)
 		if err := row.Scan(&delta); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -172,7 +173,7 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 			return nil, err
 		}
 		return metrictypes.Counter(delta), nil
-	} else {
+	default:
 		return nil, customerrors.ErrBadMetricType
 	}
 }

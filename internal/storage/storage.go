@@ -27,9 +27,9 @@ type StoreMetrics interface {
 
 // MemStorage in-memory storage.
 type MemStorage struct {
-	mx      sync.RWMutex
 	gauge   map[string]metrictypes.Gauge   // for save gauge metrics
 	counter map[string]metrictypes.Counter // for save counter metrics
+	mx      sync.RWMutex
 }
 
 // Ping implementation Ping method of storage interface (in-memory storage).
@@ -93,15 +93,16 @@ func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interfa
 	m.mx.RLock()
 	defer m.mx.RUnlock()
 	// selecting metric type
-	if mType == metrictypes.GaugeType {
+	switch mType {
+	case metrictypes.GaugeType:
 		if v, ok := m.gauge[name]; ok {
 			return v, nil
 		}
-	} else if mType == metrictypes.CounterType {
+	case metrictypes.CounterType:
 		if v, ok := m.counter[name]; ok {
 			return v, nil
 		}
-	} else {
+	default:
 		return nil, customerrors.ErrBadMetricType
 	}
 	return nil, customerrors.ErrNoVal

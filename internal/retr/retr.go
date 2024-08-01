@@ -15,10 +15,10 @@ import (
 type (
 	// Retr type of retry subsystem.
 	Retr struct {
+		skippedErrors error         // non-retriable errors
 		maxRetries    uint64        // maximum retry counts
 		fiboDuration  time.Duration // duration between retries by fibonacci algoritm
 		timeout       time.Duration // retry timeout
-		skippedErrors error         // non-retriable errors
 	}
 
 	// WriteMetricType type of function for WriteMetricType method retry.

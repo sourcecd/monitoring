@@ -51,16 +51,16 @@ type (
 
 	// Type of base system metrics like CPU and Memory usage.
 	kernelMetrics struct {
-		mx sync.RWMutex
-		TotalMemory,
-		FreeMemory metrictypes.Gauge
 		CPUutilization []metrictypes.Gauge
+		TotalMemory    metrictypes.Gauge
+		FreeMemory     metrictypes.Gauge
+		mx             sync.RWMutex
 	}
 
 	// Type of collection gauge and counter metrics.
 	jsonModelsMetrics struct {
-		mx               sync.RWMutex
 		jsonMetricsSlice []models.Metrics
+		mx               sync.RWMutex
 	}
 )
 

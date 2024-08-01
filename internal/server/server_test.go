@@ -29,9 +29,9 @@ func TestUpdateHandler(t *testing.T) {
 	var keyenc string
 	type want struct {
 		method     string
-		statusCode int
 		response   string
 		request    string
+		statusCode int
 	}
 
 	testStorage := storage.NewMemStorage()
@@ -139,10 +139,10 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	var keyenc string
 	type want struct {
 		method      string
-		statusCode  int
 		response    string
 		request     string
 		requestBody string
+		statusCode  int
 	}
 
 	testStorage := storage.NewMemStorage()
@@ -166,7 +166,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  200,
-				response:    `{"id":"testCounter","type":"counter","delta":100}`,
+				response:    `{"delta":100,"id":"testCounter","type":"counter"}`,
 				request:     "/update/",
 				requestBody: `{"id": "testCounter", "type": "counter", "delta": 100}`,
 			},
@@ -176,7 +176,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  200,
-				response:    `{"id":"testGauge","type":"gauge","value":0.1}`,
+				response:    `{"value":0.1,"id":"testGauge","type":"gauge"}`,
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "gauge", "value": 0.1}`,
 			},
@@ -216,7 +216,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  200,
-				response:    `{"id":"testCounter","type":"counter","delta":100}`,
+				response:    `{"delta":100,"id":"testCounter","type":"counter"}`,
 				request:     "/value/",
 				requestBody: `{"id": "testCounter", "type": "counter"}`,
 			},
@@ -226,7 +226,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  200,
-				response:    `{"id":"testGauge","type":"gauge","value":0.1}`,
+				response:    `{"value":0.1,"id":"testGauge","type":"gauge"}`,
 				request:     "/value/",
 				requestBody: `{"id": "testGauge", "type": "gauge"}`,
 			},
@@ -315,10 +315,10 @@ func TestPgDB(t *testing.T) {
 		mDB.EXPECT().Ping(gomock.Any()).Return(errors.New("Connection refused")),
 	)
 	testPingCases := []struct {
-		name          string
-		expStatusCode int
-		expAns        string
 		mockAns       error
+		name          string
+		expAns        string
+		expStatusCode int
 	}{
 		{
 			name:          "PingOK",
