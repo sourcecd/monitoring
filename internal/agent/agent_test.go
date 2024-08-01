@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -17,6 +18,12 @@ import (
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
+
+func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
+	allBody, _ := io.ReadAll(r.Body)
+	w.WriteHeader(http.StatusOK)
+	w.Write(allBody)
+}
 
 func TestMetricsAgent(t *testing.T) {
 	metrics := &jsonModelsMetrics{}
@@ -107,4 +114,23 @@ func TestParseKernMetrics(t *testing.T) {
 
 	require.Greater(t, len(m.CPUutilization), 0)
 	require.Greater(t, len(j.jsonMetricsSlice), 0)
+}
+
+func TestWorker(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
+	defer ts.Close()
+
+	id := 1
+	ch1 := make(chan string, 1)
+	ch1 <- "Hello"
+	ch2 := make(chan error, 1)
+	timeout := time.Second
+	keyenc := ""
+	defer close(ch1)
+	defer close(ch2)
+
+	client := resty.New().R()
+
+	go worker(id, ch1, timeout, ts.URL, keyenc, client, ch2)
+	require.NoError(t, <-ch2)
 }
