@@ -1,5 +1,5 @@
-// Package retr retry logic for monitoring methods.
-package retr
+// Package retrier retry logic for monitoring methods.
+package retrier
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 )
 
 type (
-	// Retr type of retry subsystem.
-	Retr struct {
+	// Retrier type of retry subsystem.
+	Retrier struct {
 		skippedErrors error         // non-retriable errors
 		maxRetries    uint64        // maximum retry counts
 		fiboDuration  time.Duration // duration between retries by fibonacci algoritm
@@ -33,16 +33,16 @@ type (
 	GetMetricType func(ctx context.Context, mType, name string) (interface{}, error)
 )
 
-// UseRetrWM retry method for WriteMetric function.
-func (rtr *Retr) UseRetrWM(f WriteMetricType) WriteMetricType {
-	bf := retry.WithMaxRetries(rtr.maxRetries, retry.NewFibonacci(rtr.fiboDuration))
+// UseRetrierWM retry method for WriteMetric function.
+func (reqRetrier *Retrier) UseRetrierWM(f WriteMetricType) WriteMetricType {
+	bf := retry.WithMaxRetries(reqRetrier.maxRetries, retry.NewFibonacci(reqRetrier.fiboDuration))
 
 	return func(ctx context.Context, mtype, name string, val interface{}) error {
-		ctx, cancel := context.WithTimeout(ctx, rtr.timeout)
+		ctx, cancel := context.WithTimeout(ctx, reqRetrier.timeout)
 		defer cancel()
 		err := retry.Do(ctx, bf, func(ctx context.Context) error {
 			err := f(ctx, mtype, name, val)
-			if errors.Is(rtr.skippedErrors, err) {
+			if errors.Is(reqRetrier.skippedErrors, err) {
 				return err
 			}
 			return retry.RetryableError(err)
@@ -51,16 +51,16 @@ func (rtr *Retr) UseRetrWM(f WriteMetricType) WriteMetricType {
 	}
 }
 
-// UseRetrWMB retry method for WriteBatchMetrics function.
-func (rtr *Retr) UseRetrWMB(f WriteBatchMetricsType) WriteBatchMetricsType {
-	bf := retry.WithMaxRetries(rtr.maxRetries, retry.NewFibonacci(rtr.fiboDuration))
+// UseRetrierWMB retry method for WriteBatchMetrics function.
+func (reqRetrier *Retrier) UseRetrierWMB(f WriteBatchMetricsType) WriteBatchMetricsType {
+	bf := retry.WithMaxRetries(reqRetrier.maxRetries, retry.NewFibonacci(reqRetrier.fiboDuration))
 
 	return func(ctx context.Context, metrics []models.Metrics) error {
-		ctx, cancel := context.WithTimeout(ctx, rtr.timeout)
+		ctx, cancel := context.WithTimeout(ctx, reqRetrier.timeout)
 		defer cancel()
 		err := retry.Do(ctx, bf, func(ctx context.Context) error {
 			err := f(ctx, metrics)
-			if errors.Is(rtr.skippedErrors, err) {
+			if errors.Is(reqRetrier.skippedErrors, err) {
 				return err
 			}
 			return retry.RetryableError(err)
@@ -69,16 +69,16 @@ func (rtr *Retr) UseRetrWMB(f WriteBatchMetricsType) WriteBatchMetricsType {
 	}
 }
 
-// UseRetrPopDB retry method for PopulateDB function.
-func (rtr *Retr) UseRetrPopDB(f PopulateDBType) PopulateDBType {
-	bf := retry.WithMaxRetries(rtr.maxRetries, retry.NewFibonacci(rtr.fiboDuration))
+// UseRetrierPopDB retry method for PopulateDB function.
+func (reqRetrier *Retrier) UseRetrierPopDB(f PopulateDBType) PopulateDBType {
+	bf := retry.WithMaxRetries(reqRetrier.maxRetries, retry.NewFibonacci(reqRetrier.fiboDuration))
 
 	return func(ctx context.Context) error {
-		ctx, cancel := context.WithTimeout(ctx, rtr.timeout)
+		ctx, cancel := context.WithTimeout(ctx, reqRetrier.timeout)
 		defer cancel()
 		err := retry.Do(ctx, bf, func(ctx context.Context) error {
 			err := f(ctx)
-			if errors.Is(rtr.skippedErrors, err) {
+			if errors.Is(reqRetrier.skippedErrors, err) {
 				return err
 			}
 			return retry.RetryableError(err)
@@ -87,18 +87,18 @@ func (rtr *Retr) UseRetrPopDB(f PopulateDBType) PopulateDBType {
 	}
 }
 
-// UseRetrGetAllM retry method for GetAllMetricsTxt function.
-func (rtr *Retr) UseRetrGetAllM(f GetAllMetricsTxtType) GetAllMetricsTxtType {
-	bf := retry.WithMaxRetries(rtr.maxRetries, retry.NewFibonacci(rtr.fiboDuration))
+// UseRetrierGetAllM retry method for GetAllMetricsTxt function.
+func (reqRetrier *Retrier) UseRetrierGetAllM(f GetAllMetricsTxtType) GetAllMetricsTxtType {
+	bf := retry.WithMaxRetries(reqRetrier.maxRetries, retry.NewFibonacci(reqRetrier.fiboDuration))
 
 	return func(ctx context.Context) (string, error) {
-		ctx, cancel := context.WithTimeout(ctx, rtr.timeout)
+		ctx, cancel := context.WithTimeout(ctx, reqRetrier.timeout)
 		defer cancel()
 		var s string
 		var err error
 		err = retry.Do(ctx, bf, func(ctx context.Context) error {
 			s, err = f(ctx)
-			if errors.Is(rtr.skippedErrors, err) {
+			if errors.Is(reqRetrier.skippedErrors, err) {
 				return err
 			}
 			return retry.RetryableError(err)
@@ -107,18 +107,18 @@ func (rtr *Retr) UseRetrGetAllM(f GetAllMetricsTxtType) GetAllMetricsTxtType {
 	}
 }
 
-// UseRetrGetMetric retry method for GetMetric function.
-func (rtr *Retr) UseRetrGetMetric(f GetMetricType) GetMetricType {
-	bf := retry.WithMaxRetries(rtr.maxRetries, retry.NewFibonacci(rtr.fiboDuration))
+// UseRetrierGetMetric retry method for GetMetric function.
+func (reqRetrier *Retrier) UseRetrierGetMetric(f GetMetricType) GetMetricType {
+	bf := retry.WithMaxRetries(reqRetrier.maxRetries, retry.NewFibonacci(reqRetrier.fiboDuration))
 
 	return func(ctx context.Context, mType, name string) (interface{}, error) {
-		ctx, cancel := context.WithTimeout(ctx, rtr.timeout)
+		ctx, cancel := context.WithTimeout(ctx, reqRetrier.timeout)
 		defer cancel()
 		var i interface{}
 		var err error
 		err = retry.Do(ctx, bf, func(ctx context.Context) error {
 			i, err = f(ctx, mType, name)
-			if errors.Is(rtr.skippedErrors, err) {
+			if errors.Is(reqRetrier.skippedErrors, err) {
 				return err
 			}
 			return retry.RetryableError(err)
@@ -128,15 +128,15 @@ func (rtr *Retr) UseRetrGetMetric(f GetMetricType) GetMetricType {
 }
 
 // SetParams set retry parameters.
-func (rtr *Retr) SetParams(fibotime, timeout time.Duration, maxretries uint64) {
-	rtr.fiboDuration = fibotime
-	rtr.maxRetries = maxretries
-	rtr.timeout = timeout
+func (reqRetrier *Retrier) SetParams(fibotime, timeout time.Duration, maxretries uint64) {
+	reqRetrier.fiboDuration = fibotime
+	reqRetrier.maxRetries = maxretries
+	reqRetrier.timeout = timeout
 }
 
-// NewRetr init retrier.
-func NewRetr() *Retr {
-	return &Retr{
+// NewRetrier init retrier.
+func NewRetrier() *Retrier {
+	return &Retrier{
 		fiboDuration: 1 * time.Second,
 		maxRetries:   3,
 		timeout:      30 * time.Second,
@@ -151,6 +151,6 @@ func NewRetr() *Retr {
 }
 
 // GetTimeoutCtx supportive method for get current timeout setting.
-func (rtr *Retr) GetTimeoutCtx() time.Duration {
-	return rtr.timeout
+func (reqRetrier *Retrier) GetTimeoutCtx() time.Duration {
+	return reqRetrier.timeout
 }

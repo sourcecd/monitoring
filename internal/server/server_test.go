@@ -17,14 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/sourcecd/monitoring/internal/metrictypes"
-	"github.com/sourcecd/monitoring/internal/retr"
+	"github.com/sourcecd/monitoring/internal/retrier"
 	"github.com/sourcecd/monitoring/internal/storage"
 	"github.com/sourcecd/monitoring/mocks"
 )
 
 func TestUpdateHandler(t *testing.T) {
 	ctx := context.Background()
-	rtr := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 
 	var keyenc string
 	type want struct {
@@ -37,9 +37,9 @@ func TestUpdateHandler(t *testing.T) {
 	testStorage := storage.NewMemStorage()
 
 	mh := &metricHandlers{
-		ctx:     ctx,
-		storage: testStorage,
-		rtr:     rtr,
+		ctx:        ctx,
+		storage:    testStorage,
+		reqRetrier: reqRetrier,
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc))
@@ -134,7 +134,7 @@ func TestUpdateHandler(t *testing.T) {
 
 func TestUpdateHandlerJSON(t *testing.T) {
 	ctx := context.Background()
-	rtr := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 
 	var keyenc string
 	type want struct {
@@ -148,9 +148,9 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	testStorage := storage.NewMemStorage()
 
 	mh := &metricHandlers{
-		ctx:     ctx,
-		storage: testStorage,
-		rtr:     rtr,
+		ctx:        ctx,
+		storage:    testStorage,
+		reqRetrier: reqRetrier,
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc))
@@ -293,7 +293,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 
 func TestPgDB(t *testing.T) {
 	ctx := context.Background()
-	rtr := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 
 	var keyenc string
 	ctrl := gomock.NewController(t)
@@ -302,9 +302,9 @@ func TestPgDB(t *testing.T) {
 	mDB := mocks.NewMockStoreMetrics(ctrl)
 
 	mh := &metricHandlers{
-		ctx:     ctx,
-		storage: mDB,
-		rtr:     rtr,
+		ctx:        ctx,
+		storage:    mDB,
+		reqRetrier: reqRetrier,
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc))
@@ -373,11 +373,11 @@ func TestGetAll(t *testing.T) {
 `
 	ctx := context.Background()
 	storage := storage.NewMemStorage()
-	retrier := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 	mh := metricHandlers{
-		ctx:     ctx,
-		storage: storage,
-		rtr:     retrier,
+		ctx:        ctx,
+		storage:    storage,
+		reqRetrier: reqRetrier,
 	}
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -397,11 +397,11 @@ func TestGetAll(t *testing.T) {
 func TestUpdateBatchMetricsJSON(t *testing.T) {
 	ctx := context.Background()
 	storage := storage.NewMemStorage()
-	retrier := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 	mh := metricHandlers{
-		ctx:     ctx,
-		storage: storage,
-		rtr:     retrier,
+		ctx:        ctx,
+		storage:    storage,
+		reqRetrier: reqRetrier,
 	}
 	testRequest := `[{"type": "gauge", "id": "testmetric", "value": 0.1}]`
 
