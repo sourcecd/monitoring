@@ -26,6 +26,7 @@ func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestMetricsAgent(t *testing.T) {
+	t.Parallel()
 	metrics := &jsonModelsMetrics{}
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
@@ -59,6 +60,7 @@ func TestMetricsAgent(t *testing.T) {
 }
 
 func TestUpdateSysKernMetrics(t *testing.T) {
+	t.Parallel()
 	cpuCount, _ := cpu.Counts(true)
 	m := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
 	updateSysKernMetrics(m)
@@ -68,6 +70,7 @@ func TestUpdateSysKernMetrics(t *testing.T) {
 }
 
 func TestSendFunc(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, r.Method, "POST")
 
@@ -91,6 +94,7 @@ func TestSendFunc(t *testing.T) {
 }
 
 func TestParseRtm(t *testing.T) {
+	t.Parallel()
 	m := &MemStats{}
 	jsonMetrics := &jsonModelsMetrics{}
 	sysMon := &sysMon{}
@@ -105,6 +109,7 @@ func TestParseRtm(t *testing.T) {
 }
 
 func TestParseKernMetrics(t *testing.T) {
+	t.Parallel()
 	cpuCount, _ := cpu.Counts(true)
 	m := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
 	j := &jsonModelsMetrics{}
@@ -117,6 +122,7 @@ func TestParseKernMetrics(t *testing.T) {
 }
 
 func TestWorker(t *testing.T) {
+	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
 	t.Cleanup(func() { ts.Close() })
 

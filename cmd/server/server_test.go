@@ -11,6 +11,7 @@ import (
 )
 
 func TestServerCmdArgs(t *testing.T) {
+	t.Parallel()
 	var config server.ConfigArgs
 	// set some args for cmdline check
 	os.Args = append(os.Args, "-a", "localhost:8080")
@@ -36,6 +37,7 @@ func TestServerCmdArgs(t *testing.T) {
 }
 
 func TestServerEnvArgs(t *testing.T) {
+	t.Parallel()
 	var config server.ConfigArgs
 	// set test env args
 	os.Setenv("ADDRESS", "localhost:9090")
@@ -61,6 +63,7 @@ func TestServerEnvArgs(t *testing.T) {
 }
 
 func TestBuildOpts(t *testing.T) {
+	t.Parallel()
 	var err error
 	testF := "test_build_opts_server.tmp"
 

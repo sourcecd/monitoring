@@ -23,6 +23,7 @@ import (
 )
 
 func TestUpdateHandler(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
 
@@ -133,6 +134,7 @@ func TestUpdateHandler(t *testing.T) {
 }
 
 func TestUpdateHandlerJSON(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
 
@@ -292,6 +294,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 }
 
 func TestPgDB(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
 
@@ -352,6 +355,7 @@ func TestPgDB(t *testing.T) {
 }
 
 func TestGetAll(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	tmpl, _ := template.New("data").Parse(`
 <!DOCTYPE html>
@@ -395,6 +399,7 @@ func TestGetAll(t *testing.T) {
 }
 
 func TestUpdateBatchMetricsJSON(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	storage := storage.NewMemStorage()
 	reqRetrier := retrier.NewRetrier()

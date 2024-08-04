@@ -11,6 +11,7 @@ import (
 )
 
 func TestAgentCmdArgs(t *testing.T) {
+	t.Parallel()
 	var config agent.ConfigArgs
 	// set some args for cmdline check
 	os.Args = append(os.Args, "-a", "localhost:8080")
@@ -32,6 +33,7 @@ func TestAgentCmdArgs(t *testing.T) {
 }
 
 func TestAgentEnvArgs(t *testing.T) {
+	t.Parallel()
 	var config agent.ConfigArgs
 	// set test env args
 	os.Setenv("ADDRESS", "localhost:9090")
@@ -53,6 +55,7 @@ func TestAgentEnvArgs(t *testing.T) {
 }
 
 func TestBuildOpts(t *testing.T) {
+	t.Parallel()
 	var err error
 	testF := "test_build_opts_agent.tmp"
 
