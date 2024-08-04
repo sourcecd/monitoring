@@ -67,14 +67,26 @@ import (
 )
 
 // Analyze "SA..." prefix of staticcheck analyzers
-const saStaticCheckPrefix = "SA"
+const staticCheckAnalyzerPrefix = "SA"
 
-// Analyzers lists
 var (
-	allAnalyzers, basicAnalizers, saStaticCheckAnalizers, customStaticCheckAnalizers []*analysis.Analyzer
-	allCustomAnalyzers                                                               []*lint.Analyzer
+	// Analyzers lists
+	allAnalyzers, customStaticCheckAnalyzers, customAnalyzers []*analysis.Analyzer
+	honnefAnalyzers                                           []*lint.Analyzer
 
-	customNamesStaticCheckAnalyzers = map[string]bool{
+	// Basic analyzers aka "go vet..."
+	basicAnalyzers = []*analysis.Analyzer{appends.Analyzer, asmdecl.Analyzer, assign.Analyzer, atomic.Analyzer, atomicalign.Analyzer,
+		bools.Analyzer, buildssa.Analyzer, buildtag.Analyzer, cgocall.Analyzer, composite.Analyzer, copylock.Analyzer, ctrlflow.Analyzer,
+		deepequalerrors.Analyzer, defers.Analyzer, directive.Analyzer, errorsas.Analyzer, fieldalignment.Analyzer, findcall.Analyzer,
+		framepointer.Analyzer, httpmux.Analyzer, httpresponse.Analyzer, ifaceassert.Analyzer, inspect.Analyzer, loopclosure.Analyzer,
+		lostcancel.Analyzer, nilfunc.Analyzer, nilness.Analyzer, pkgfact.Analyzer, printf.Analyzer, reflectvaluecompare.Analyzer,
+		shadow.Analyzer, shift.Analyzer, sigchanyzer.Analyzer, slog.Analyzer, sortslice.Analyzer, stdmethods.Analyzer, stdversion.Analyzer,
+		stringintconv.Analyzer, structtag.Analyzer, testinggoroutine.Analyzer, tests.Analyzer, timeformat.Analyzer, unmarshal.Analyzer,
+		unreachable.Analyzer, unsafeptr.Analyzer, unusedresult.Analyzer, unusedwrite.Analyzer, usesgenerics.Analyzer,
+	}
+
+	// Custom static check analyzers names
+	customNamesHonnefAnalyzers = map[string]bool{
 		"S1000": true,
 		"S1001": true,
 		"S1005": true,
@@ -98,6 +110,28 @@ var (
 		Run:  osExitChecker,
 	}
 )
+
+// Add specific "^SA" analizers from staticcheck package
+func getStaticCheckAnalyzers(prefix string) []*analysis.Analyzer {
+	var analyzers []*analysis.Analyzer
+	for _, v := range staticcheck.Analyzers {
+		if strings.HasPrefix(v.Analyzer.Name, prefix) {
+			analyzers = append(analyzers, v.Analyzer)
+		}
+	}
+	return analyzers
+}
+
+// Custom analyzers from honnef.co package
+func getCustomHonnefAnalyzers(analyzers []*lint.Analyzer, analyzerNames map[string]bool) []*analysis.Analyzer {
+	var customAnalyzers []*analysis.Analyzer
+	for _, v := range analyzers {
+		if analyzerNames[v.Analyzer.Name] {
+			customAnalyzers = append(customAnalyzers, v.Analyzer)
+		}
+	}
+	return customAnalyzers
+}
 
 // osExitChecker function try to found os.Exit in main function
 func osExitChecker(pass *analysis.Pass) (interface{}, error) {
@@ -124,85 +158,27 @@ func osExitChecker(pass *analysis.Pass) (interface{}, error) {
 
 // Main func for process analyzers
 func main() {
-	// Basic analyzers aka "go vet..."
-	basicAnalizers = []*analysis.Analyzer{
-		appends.Analyzer,
-		asmdecl.Analyzer,
-		assign.Analyzer,
-		atomic.Analyzer,
-		atomicalign.Analyzer,
-		bools.Analyzer,
-		buildssa.Analyzer,
-		buildtag.Analyzer,
-		cgocall.Analyzer,
-		composite.Analyzer,
-		copylock.Analyzer,
-		ctrlflow.Analyzer,
-		deepequalerrors.Analyzer,
-		defers.Analyzer,
-		directive.Analyzer,
-		errorsas.Analyzer,
-		fieldalignment.Analyzer,
-		findcall.Analyzer,
-		framepointer.Analyzer,
-		httpmux.Analyzer,
-		httpresponse.Analyzer,
-		ifaceassert.Analyzer,
-		inspect.Analyzer,
-		loopclosure.Analyzer,
-		lostcancel.Analyzer,
-		nilfunc.Analyzer,
-		nilness.Analyzer,
-		pkgfact.Analyzer,
-		printf.Analyzer,
-		reflectvaluecompare.Analyzer,
-		shadow.Analyzer,
-		shift.Analyzer,
-		sigchanyzer.Analyzer,
-		slog.Analyzer,
-		sortslice.Analyzer,
-		stdmethods.Analyzer,
-		stdversion.Analyzer,
-		stringintconv.Analyzer,
-		structtag.Analyzer,
-		testinggoroutine.Analyzer,
-		tests.Analyzer,
-		timeformat.Analyzer,
-		unmarshal.Analyzer,
-		unreachable.Analyzer,
-		unsafeptr.Analyzer,
-		unusedresult.Analyzer,
-		unusedwrite.Analyzer,
-		usesgenerics.Analyzer,
-	}
-
-	// Add specific "^SA" analizers from staticcheck package
-	for _, v := range staticcheck.Analyzers {
-		if strings.HasPrefix(v.Analyzer.Name, saStaticCheckPrefix) {
-			saStaticCheckAnalizers = append(saStaticCheckAnalizers, v.Analyzer)
-		}
-	}
+	// Get static check analyzers
+	customStaticCheckAnalyzers = getStaticCheckAnalyzers(staticCheckAnalyzerPrefix)
 
 	// Add custom staticcheck analyzers
-	allCustomAnalyzers = append(allCustomAnalyzers, simple.Analyzers...)
-	allCustomAnalyzers = append(allCustomAnalyzers, stylecheck.Analyzers...)
-	allCustomAnalyzers = append(allCustomAnalyzers, quickfix.Analyzers...)
-	for _, v := range allCustomAnalyzers {
-		if customNamesStaticCheckAnalyzers[v.Analyzer.Name] {
-			customStaticCheckAnalizers = append(customStaticCheckAnalizers, v.Analyzer)
-		}
-	}
+	honnefAnalyzers = append(honnefAnalyzers, simple.Analyzers...)
+	honnefAnalyzers = append(honnefAnalyzers, stylecheck.Analyzers...)
+	honnefAnalyzers = append(honnefAnalyzers, quickfix.Analyzers...)
+
+	// Filter custom staticcheck analyzers
+	customAnalyzers = getCustomHonnefAnalyzers(honnefAnalyzers, customNamesHonnefAnalyzers)
 
 	// Add public analizers (errcheck - github.com/kisielk/errcheck and github.com/gordonklaus/ineffassign/pkg/ineffassign)
-	customStaticCheckAnalizers = append(customStaticCheckAnalizers, errcheck.Analyzer, ineffassign.Analyzer)
+	customAnalyzers = append(customAnalyzers, errcheck.Analyzer, ineffassign.Analyzer)
 
 	// Add os.Exit analyzer
-	customStaticCheckAnalizers = append(customStaticCheckAnalizers, osExitAstAnalyze)
+	customAnalyzers = append(customAnalyzers, osExitAstAnalyze)
 
 	// Union all analyzers
-	allAnalyzers = append(allAnalyzers, basicAnalizers...)
-	allAnalyzers = append(allAnalyzers, saStaticCheckAnalizers...)
-	allAnalyzers = append(allAnalyzers, customStaticCheckAnalizers...)
+	allAnalyzers = append(allAnalyzers, basicAnalyzers...)
+	allAnalyzers = append(allAnalyzers, customStaticCheckAnalyzers...)
+	allAnalyzers = append(allAnalyzers, customAnalyzers...)
 
 	// Multichecker analyzers run
 	multichecker.Main(allAnalyzers...)
