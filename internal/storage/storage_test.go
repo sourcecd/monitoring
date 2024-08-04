@@ -11,7 +11,7 @@ import (
 
 func TestFileWrite(t *testing.T) {
 	tmpFile := "test_save_to_file.tmp"
-	defer os.Remove(tmpFile)
+	t.Cleanup(func() { os.Remove(tmpFile) })
 
 	ctx := context.Background()
 	memStorage := NewMemStorage()

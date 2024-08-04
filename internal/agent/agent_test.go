@@ -78,6 +78,7 @@ func TestSendFunc(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("testRequestDone"))
 	}))
+	t.Cleanup(func() { srv.Close() })
 
 	client := resty.New()
 	request := client.R()
@@ -87,7 +88,6 @@ func TestSendFunc(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "testRequestDone", string(response.Body()))
 	require.Equal(t, http.StatusOK, response.StatusCode())
-	srv.Close()
 }
 
 func TestParseRtm(t *testing.T) {
@@ -118,7 +118,7 @@ func TestParseKernMetrics(t *testing.T) {
 
 func TestWorker(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	id := 1
 	ch1 := make(chan string, 1)

@@ -61,7 +61,7 @@ func TestAgentSign(t *testing.T) {
 	}
 
 	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	for _, v := range testCases {
 		t.Run(v.name, func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestServerRespSign(t *testing.T) {
 	for _, v := range testCases {
 		t.Run(v.name, func(t *testing.T) {
 			ts := httptest.NewServer(SignCheck(testServerHTTPHandler, v.seckey))
-			defer ts.Close()
+			t.Cleanup(func() { ts.Close() })
 
 			client := resty.New().R()
 			testResp, err := client.SetBody(testBodyResp).Post(ts.URL)
@@ -137,7 +137,7 @@ func TestServerReqSign(t *testing.T) {
 	}
 
 	ts := httptest.NewServer(SignCheck(testServerHTTPHandler, seckey))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	for _, v := range testCases {
 		t.Run(v.Name, func(t *testing.T) {

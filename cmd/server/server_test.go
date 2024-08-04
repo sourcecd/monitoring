@@ -72,7 +72,7 @@ Build commit: testOkOk
 	stdo := os.Stdout
 	os.Stdout, err = os.OpenFile(testF, os.O_CREATE|os.O_WRONLY, 0644)
 	require.NoError(t, err)
-	defer os.Remove(testF)
+	t.Cleanup(func() { os.Remove(testF) })
 
 	buildVersion = "2"
 	buildDate = "1971year"

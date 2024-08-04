@@ -43,7 +43,7 @@ func TestUpdateHandler(t *testing.T) {
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	testCase := []struct {
 		name string
@@ -154,7 +154,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	//json api
 	testCaseJSON := []struct {
@@ -297,7 +297,7 @@ func TestPgDB(t *testing.T) {
 
 	var keyenc string
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Cleanup(func() { ctrl.Finish() })
 
 	mDB := mocks.NewMockStoreMetrics(ctrl)
 
@@ -308,7 +308,7 @@ func TestPgDB(t *testing.T) {
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	gomock.InOrder(
 		mDB.EXPECT().Ping(gomock.Any()).Return(nil),
