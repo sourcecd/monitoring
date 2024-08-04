@@ -124,13 +124,13 @@ func getStaticCheckAnalyzers(prefix string) []*analysis.Analyzer {
 
 // Custom analyzers from honnef.co package
 func getCustomHonnefAnalyzers(analyzers []*lint.Analyzer, analyzerNames map[string]bool) []*analysis.Analyzer {
-	var customAnalyzers []*analysis.Analyzer
+	var analyzersList []*analysis.Analyzer
 	for _, v := range analyzers {
 		if analyzerNames[v.Analyzer.Name] {
-			customAnalyzers = append(customAnalyzers, v.Analyzer)
+			analyzersList = append(analyzersList, v.Analyzer)
 		}
 	}
-	return customAnalyzers
+	return analyzersList
 }
 
 // osExitChecker function try to found os.Exit in main function
