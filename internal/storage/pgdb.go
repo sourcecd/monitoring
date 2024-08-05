@@ -43,17 +43,16 @@ func NewPgDB(dsn string) (*PgDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	pgdb := &PgDB{db: db}
-	if err := pgdb.prepareStatements(); err != nil {
-		return nil, err
-	}
-	return pgdb, nil
+	return &PgDB{db: db}, nil
 }
 
 // PopulateDB method for create monitoring table.
 func (p *PgDB) PopulateDB(ctx context.Context) error {
 	if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
 		return fmt.Errorf("populate failed: %s", err.Error())
+	}
+	if err := p.prepareStatements(); err != nil {
+		return err
 	}
 	return nil
 }
