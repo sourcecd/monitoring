@@ -21,7 +21,20 @@ mtype varchar(16), delta bigint, value double precision )`
 
 // PgDB singleton type for connect and work with postgres DB.
 type PgDB struct {
-	db *sql.DB
+	db             *sql.DB
+	getGaugeStmt   *sql.Stmt
+	getCounterStmt *sql.Stmt
+}
+
+// Prepare queries
+func (p *PgDB) prepareStatements() error {
+	var err error
+	p.getGaugeStmt, err = p.db.Prepare("SELECT value FROM monitoring WHERE id = $1")
+	if err != nil {
+		return err
+	}
+	p.getCounterStmt, err = p.db.Prepare("SELECT delta FROM monitoring WHERE id = $1")
+	return err
 }
 
 // NewPgDB init postgres DB.
@@ -30,7 +43,11 @@ func NewPgDB(dsn string) (*PgDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &PgDB{db: db}, nil
+	pgdb := &PgDB{db: db}
+	if err := pgdb.prepareStatements(); err != nil {
+		return nil, err
+	}
+	return pgdb, nil
 }
 
 // PopulateDB method for create monitoring table.
@@ -156,7 +173,7 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 	// selecting metric type
 	switch mType {
 	case metrictypes.GaugeType:
-		row := p.db.QueryRowContext(ctx, "select value from monitoring where id = $1", name)
+		row := p.getGaugeStmt.QueryRowContext(ctx, name)
 		if err := row.Scan(&value); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, customerrors.ErrNoVal
@@ -165,7 +182,7 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 		}
 		return metrictypes.Gauge(value), nil
 	case metrictypes.CounterType:
-		row := p.db.QueryRowContext(ctx, "select delta from monitoring where id = $1", name)
+		row := p.getCounterStmt.QueryRowContext(ctx, name)
 		if err := row.Scan(&delta); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, customerrors.ErrNoVal
