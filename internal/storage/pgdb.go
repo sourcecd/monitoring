@@ -26,6 +26,8 @@ type PgDB struct {
 	getCounterStmt    *sql.Stmt
 	getAllGaugeStmt   *sql.Stmt
 	getAllCounterStmt *sql.Stmt
+	insertGaugeStmt   *sql.Stmt
+	insertCounterStmt *sql.Stmt
 }
 
 // Prepare queries
@@ -44,6 +46,14 @@ func (p *PgDB) prepareStatements() error {
 		return err
 	}
 	p.getAllCounterStmt, err = p.db.Prepare("SELECT id, delta FROM monitoring WHERE mtype = 'counter' ORDER BY id")
+	if err != nil {
+		return err
+	}
+	p.insertGaugeStmt, err = p.db.Prepare("INSERT INTO monitoring (id, mtype, value) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET value = $3")
+	if err != nil {
+		return err
+	}
+	p.insertCounterStmt, err = p.db.Prepare("INSERT INTO monitoring (id, mtype, delta) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET delta = $3 + (SELECT delta FROM monitoring WHERE id = $1)")
 	return err
 }
 
@@ -74,8 +84,7 @@ func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interfac
 	case metrictypes.GaugeType:
 		if metric, ok := val.(metrictypes.Gauge); ok {
 			//idempotency
-			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
-			values ($1, $2, $3) on conflict (id) do update set value = $3`, name, "gauge", metric); err != nil {
+			if _, err := p.insertGaugeStmt.ExecContext(ctx, name, "gauge", metric); err != nil {
 				return fmt.Errorf("write gauge to db failed: %s", err.Error())
 			}
 			return nil
@@ -83,9 +92,7 @@ func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interfac
 		return customerrors.ErrWrongMetricValueType
 	case metrictypes.CounterType:
 		if metric, ok := val.(metrictypes.Counter); ok {
-			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
-			values ($1, $2, $3) on conflict (id) 
-			do update set delta = $3 + (select delta from monitoring where id = $1)`, name, "counter", metric); err != nil {
+			if _, err := p.insertCounterStmt.ExecContext(ctx, name, "counter", metric); err != nil {
 				return fmt.Errorf("write counter to db failed: %s", err.Error())
 			}
 			return nil
