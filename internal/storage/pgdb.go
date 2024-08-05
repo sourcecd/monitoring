@@ -21,9 +21,11 @@ mtype varchar(16), delta bigint, value double precision )`
 
 // PgDB singleton type for connect and work with postgres DB.
 type PgDB struct {
-	db             *sql.DB
-	getGaugeStmt   *sql.Stmt
-	getCounterStmt *sql.Stmt
+	db                *sql.DB
+	getGaugeStmt      *sql.Stmt
+	getCounterStmt    *sql.Stmt
+	getAllGaugeStmt   *sql.Stmt
+	getAllCounterStmt *sql.Stmt
 }
 
 // Prepare queries
@@ -34,6 +36,14 @@ func (p *PgDB) prepareStatements() error {
 		return err
 	}
 	p.getCounterStmt, err = p.db.Prepare("SELECT delta FROM monitoring WHERE id = $1")
+	if err != nil {
+		return err
+	}
+	p.getAllGaugeStmt, err = p.db.Prepare("SELECT id, value FROM monitoring WHERE mtype = 'gauge' ORDER BY id")
+	if err != nil {
+		return err
+	}
+	p.getAllCounterStmt, err = p.db.Prepare("SELECT id, delta FROM monitoring WHERE mtype = 'counter' ORDER BY id")
 	return err
 }
 
@@ -132,7 +142,7 @@ func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	var delta int64
 	var value float64
 
-	rowsc, err := p.db.QueryContext(ctx, "select id, delta from monitoring where mtype = 'counter' order by id")
+	rowsc, err := p.getAllCounterStmt.QueryContext(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -147,7 +157,7 @@ func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 		return "", err
 	}
 	s += "---Gauge---\n"
-	rowsg, err := p.db.QueryContext(ctx, "select id, value from monitoring where mtype = 'gauge' order by id")
+	rowsg, err := p.getAllGaugeStmt.QueryContext(ctx)
 	if err != nil {
 		return "", err
 	}
