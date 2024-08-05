@@ -443,7 +443,7 @@ jobs:
         run: |
           go test -v -race ./...
 
-      - name: "Code increment #15 (race detection)"
+      - name: "Code increment #15"
         if: |
           github.ref == 'refs/heads/main' ||
           github.head_ref == 'iter15' ||
@@ -453,9 +453,9 @@ jobs:
           github.head_ref == 'iter19' ||
           github.head_ref == 'iter20'
         run: |
-          go test -v -race ./...
+          go test -v ./...
 
-      - name: "Code increment #16 (race detection)"
+      - name: "Code increment #16"
         if: |
           github.ref == 'refs/heads/main' ||
           github.head_ref == 'iter16' ||
@@ -464,9 +464,9 @@ jobs:
           github.head_ref == 'iter19' ||
           github.head_ref == 'iter20'
         run: |
-          go test -v -race ./...
+          go test -v ./...
 
-      - name: "Code increment #17 (race detection)"
+      - name: "Code increment #17"
         if: |
           github.ref == 'refs/heads/main' ||
           github.head_ref == 'iter17' ||
@@ -474,28 +474,28 @@ jobs:
           github.head_ref == 'iter19' ||
           github.head_ref == 'iter20'
         run: |
-          go test -v -race ./...
+          go test -v ./...
 
-      - name: "Code increment #18 (race detection)"
+      - name: "Code increment #18"
         if: |
           github.ref == 'refs/heads/main' ||
           github.head_ref == 'iter18' ||
           github.head_ref == 'iter19' ||
           github.head_ref == 'iter20'
         run: |
-          go test -v -race ./...
+          go test -v ./...
 
-      - name: "Code increment #19 (race detection)"
+      - name: "Code increment #19"
         if: |
           github.ref == 'refs/heads/main' ||
           github.head_ref == 'iter19' ||
           github.head_ref == 'iter20'
         run: |
-          go test -v -race ./...
+          go test -v ./...
 
-      - name: "Code increment #20 (race detection)"
+      - name: "Code increment #20"
         if: |
           github.ref == 'refs/heads/main' ||
           github.head_ref == 'iter20'
         run: |
-          go test -v -race ./...
+          go test -v ./...
