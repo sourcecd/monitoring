@@ -120,8 +120,7 @@ func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) 
 				log.Println("empty id or nil value gauge metric")
 				continue
 			}
-			if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
-			values ($1, $2, $3) on conflict (id) do update set value = $3`, v.ID, v.MType, v.Value); err != nil {
+			if _, err := tx.StmtContext(ctx, p.insertGaugeStmt).ExecContext(ctx, v.ID, v.MType, v.Value); err != nil {
 				return fmt.Errorf("write gauge to db failed: %s", err.Error())
 			}
 		case metrictypes.CounterType:
@@ -129,9 +128,7 @@ func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) 
 				log.Println("empty id or nil value counter metric")
 				continue
 			}
-			if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
-			values ($1, $2, $3) on conflict (id) 
-			do update set delta = $3 + (select delta from monitoring where id = $1)`, v.ID, v.MType, v.Delta); err != nil {
+			if _, err := tx.StmtContext(ctx, p.insertCounterStmt).ExecContext(ctx, v.ID, v.MType, v.Delta); err != nil {
 				return fmt.Errorf("write counter to db failed: %s", err.Error())
 			}
 		default:
