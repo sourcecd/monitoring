@@ -7,12 +7,30 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 var testBodyReq = "<html>TestRequest</html>"
+
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(nil)
+	},
+}
+
+func getGzipWriter(w io.Writer) *gzip.Writer {
+	gzw := gzipWriterPool.Get().(*gzip.Writer)
+	gzw.Reset(w)
+	return gzw
+}
+
+func putGzipWriter(gzw *gzip.Writer) {
+	gzw.Close()
+	gzipWriterPool.Put(gzw)
+}
 
 func testGzipFunc(w http.ResponseWriter, r *http.Request) {
 	b, _ := io.ReadAll(r.Body)
@@ -63,11 +81,10 @@ func TestCompressionRead(t *testing.T) {
 
 func TestCompressionWrite(t *testing.T) {
 	var b bytes.Buffer
-	gz := gzip.NewWriter(&b)
+	gz := getGzipWriter(&b)
 	_, err := gz.Write([]byte(testBodyReq))
 	require.NoError(t, err)
-	err = gz.Close()
-	require.NoError(t, err)
+	putGzipWriter(gz)
 
 	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(b.Bytes()))
 	req.Header.Set("Content-Encoding", "gzip")
