@@ -21,7 +21,40 @@ mtype varchar(16), delta bigint, value double precision )`
 
 // PgDB singleton type for connect and work with postgres DB.
 type PgDB struct {
-	db *sql.DB
+	db                *sql.DB
+	getGaugeStmt      *sql.Stmt
+	getCounterStmt    *sql.Stmt
+	getAllGaugeStmt   *sql.Stmt
+	getAllCounterStmt *sql.Stmt
+	insertGaugeStmt   *sql.Stmt
+	insertCounterStmt *sql.Stmt
+}
+
+// Prepare queries
+func (p *PgDB) prepareStatements() error {
+	var err error
+	p.getGaugeStmt, err = p.db.Prepare("SELECT value FROM monitoring WHERE id = $1")
+	if err != nil {
+		return err
+	}
+	p.getCounterStmt, err = p.db.Prepare("SELECT delta FROM monitoring WHERE id = $1")
+	if err != nil {
+		return err
+	}
+	p.getAllGaugeStmt, err = p.db.Prepare("SELECT id, value FROM monitoring WHERE mtype = 'gauge' ORDER BY id")
+	if err != nil {
+		return err
+	}
+	p.getAllCounterStmt, err = p.db.Prepare("SELECT id, delta FROM monitoring WHERE mtype = 'counter' ORDER BY id")
+	if err != nil {
+		return err
+	}
+	p.insertGaugeStmt, err = p.db.Prepare("INSERT INTO monitoring (id, mtype, value) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET value = $3")
+	if err != nil {
+		return err
+	}
+	p.insertCounterStmt, err = p.db.Prepare("INSERT INTO monitoring (id, mtype, delta) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET delta = $3 + (SELECT delta FROM monitoring WHERE id = $1)")
+	return err
 }
 
 // NewPgDB init postgres DB.
@@ -38,6 +71,9 @@ func (p *PgDB) PopulateDB(ctx context.Context) error {
 	if _, err := p.db.ExecContext(ctx, populateQuery); err != nil {
 		return fmt.Errorf("populate failed: %s", err.Error())
 	}
+	if err := p.prepareStatements(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -48,8 +84,7 @@ func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interfac
 	case metrictypes.GaugeType:
 		if metric, ok := val.(metrictypes.Gauge); ok {
 			//idempotency
-			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
-			values ($1, $2, $3) on conflict (id) do update set value = $3`, name, "gauge", metric); err != nil {
+			if _, err := p.insertGaugeStmt.ExecContext(ctx, name, "gauge", metric); err != nil {
 				return fmt.Errorf("write gauge to db failed: %s", err.Error())
 			}
 			return nil
@@ -57,9 +92,7 @@ func (p *PgDB) WriteMetric(ctx context.Context, mtype, name string, val interfac
 		return customerrors.ErrWrongMetricValueType
 	case metrictypes.CounterType:
 		if metric, ok := val.(metrictypes.Counter); ok {
-			if _, err := p.db.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
-			values ($1, $2, $3) on conflict (id) 
-			do update set delta = $3 + (select delta from monitoring where id = $1)`, name, "counter", metric); err != nil {
+			if _, err := p.insertCounterStmt.ExecContext(ctx, name, "counter", metric); err != nil {
 				return fmt.Errorf("write counter to db failed: %s", err.Error())
 			}
 			return nil
@@ -87,8 +120,7 @@ func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) 
 				log.Println("empty id or nil value gauge metric")
 				continue
 			}
-			if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, value) 
-			values ($1, $2, $3) on conflict (id) do update set value = $3`, v.ID, v.MType, v.Value); err != nil {
+			if _, err := tx.StmtContext(ctx, p.insertGaugeStmt).ExecContext(ctx, v.ID, v.MType, v.Value); err != nil {
 				return fmt.Errorf("write gauge to db failed: %s", err.Error())
 			}
 		case metrictypes.CounterType:
@@ -96,9 +128,7 @@ func (p *PgDB) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) 
 				log.Println("empty id or nil value counter metric")
 				continue
 			}
-			if _, err := tx.ExecContext(ctx, `insert into monitoring (id, mtype, delta) 
-			values ($1, $2, $3) on conflict (id) 
-			do update set delta = $3 + (select delta from monitoring where id = $1)`, v.ID, v.MType, v.Delta); err != nil {
+			if _, err := tx.StmtContext(ctx, p.insertCounterStmt).ExecContext(ctx, v.ID, v.MType, v.Delta); err != nil {
 				return fmt.Errorf("write counter to db failed: %s", err.Error())
 			}
 		default:
@@ -116,7 +146,7 @@ func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 	var delta int64
 	var value float64
 
-	rowsc, err := p.db.QueryContext(ctx, "select id, delta from monitoring where mtype = 'counter' order by id")
+	rowsc, err := p.getAllCounterStmt.QueryContext(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -131,7 +161,7 @@ func (p *PgDB) GetAllMetricsTxt(ctx context.Context) (string, error) {
 		return "", err
 	}
 	s += "---Gauge---\n"
-	rowsg, err := p.db.QueryContext(ctx, "select id, value from monitoring where mtype = 'gauge' order by id")
+	rowsg, err := p.getAllGaugeStmt.QueryContext(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -154,8 +184,9 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 	var value float64
 	var delta int64
 	// selecting metric type
-	if mType == metrictypes.GaugeType {
-		row := p.db.QueryRowContext(ctx, "select value from monitoring where id = $1", name)
+	switch mType {
+	case metrictypes.GaugeType:
+		row := p.getGaugeStmt.QueryRowContext(ctx, name)
 		if err := row.Scan(&value); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, customerrors.ErrNoVal
@@ -163,8 +194,8 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 			return nil, err
 		}
 		return metrictypes.Gauge(value), nil
-	} else if mType == metrictypes.CounterType {
-		row := p.db.QueryRowContext(ctx, "select delta from monitoring where id = $1", name)
+	case metrictypes.CounterType:
+		row := p.getCounterStmt.QueryRowContext(ctx, name)
 		if err := row.Scan(&delta); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, customerrors.ErrNoVal
@@ -172,7 +203,7 @@ func (p *PgDB) GetMetric(ctx context.Context, mType, name string) (interface{}, 
 			return nil, err
 		}
 		return metrictypes.Counter(delta), nil
-	} else {
+	default:
 		return nil, customerrors.ErrBadMetricType
 	}
 }

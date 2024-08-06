@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/sourcecd/monitoring/internal/retr"
+	"github.com/sourcecd/monitoring/internal/retrier"
 	"github.com/sourcecd/monitoring/internal/storage"
 )
 
@@ -31,11 +31,11 @@ func Example() {
 	keyenc := ""
 	ctx := context.Background()
 	storage := storage.NewMemStorage()
-	retrier := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 	mh := &metricHandlers{
-		ctx:     ctx,
-		storage: storage,
-		rtr:     retrier,
+		ctx:        ctx,
+		storage:    storage,
+		reqRetrier: reqRetrier,
 	}
 
 	srv := httptest.NewServer(chiRouter(mh, keyenc))

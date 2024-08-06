@@ -17,33 +17,34 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/sourcecd/monitoring/internal/metrictypes"
-	"github.com/sourcecd/monitoring/internal/retr"
+	"github.com/sourcecd/monitoring/internal/retrier"
 	"github.com/sourcecd/monitoring/internal/storage"
 	"github.com/sourcecd/monitoring/mocks"
 )
 
 func TestUpdateHandler(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	rtr := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 
 	var keyenc string
 	type want struct {
 		method     string
-		statusCode int
 		response   string
 		request    string
+		statusCode int
 	}
 
 	testStorage := storage.NewMemStorage()
 
 	mh := &metricHandlers{
-		ctx:     ctx,
-		storage: testStorage,
-		rtr:     rtr,
+		ctx:        ctx,
+		storage:    testStorage,
+		reqRetrier: reqRetrier,
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	testCase := []struct {
 		name string
@@ -133,28 +134,29 @@ func TestUpdateHandler(t *testing.T) {
 }
 
 func TestUpdateHandlerJSON(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	rtr := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 
 	var keyenc string
 	type want struct {
 		method      string
-		statusCode  int
 		response    string
 		request     string
 		requestBody string
+		statusCode  int
 	}
 
 	testStorage := storage.NewMemStorage()
 
 	mh := &metricHandlers{
-		ctx:     ctx,
-		storage: testStorage,
-		rtr:     rtr,
+		ctx:        ctx,
+		storage:    testStorage,
+		reqRetrier: reqRetrier,
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	//json api
 	testCaseJSON := []struct {
@@ -166,7 +168,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  200,
-				response:    `{"id":"testCounter","type":"counter","delta":100}`,
+				response:    `{"delta":100,"id":"testCounter","type":"counter"}`,
 				request:     "/update/",
 				requestBody: `{"id": "testCounter", "type": "counter", "delta": 100}`,
 			},
@@ -176,7 +178,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  200,
-				response:    `{"id":"testGauge","type":"gauge","value":0.1}`,
+				response:    `{"value":0.1,"id":"testGauge","type":"gauge"}`,
 				request:     "/update/",
 				requestBody: `{"id": "testGauge", "type": "gauge", "value": 0.1}`,
 			},
@@ -216,7 +218,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  200,
-				response:    `{"id":"testCounter","type":"counter","delta":100}`,
+				response:    `{"delta":100,"id":"testCounter","type":"counter"}`,
 				request:     "/value/",
 				requestBody: `{"id": "testCounter", "type": "counter"}`,
 			},
@@ -226,7 +228,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 			want: want{
 				method:      http.MethodPost,
 				statusCode:  200,
-				response:    `{"id":"testGauge","type":"gauge","value":0.1}`,
+				response:    `{"value":0.1,"id":"testGauge","type":"gauge"}`,
 				request:     "/value/",
 				requestBody: `{"id": "testGauge", "type": "gauge"}`,
 			},
@@ -292,33 +294,34 @@ func TestUpdateHandlerJSON(t *testing.T) {
 }
 
 func TestPgDB(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	rtr := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 
 	var keyenc string
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Cleanup(func() { ctrl.Finish() })
 
 	mDB := mocks.NewMockStoreMetrics(ctrl)
 
 	mh := &metricHandlers{
-		ctx:     ctx,
-		storage: mDB,
-		rtr:     rtr,
+		ctx:        ctx,
+		storage:    mDB,
+		reqRetrier: reqRetrier,
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	gomock.InOrder(
 		mDB.EXPECT().Ping(gomock.Any()).Return(nil),
 		mDB.EXPECT().Ping(gomock.Any()).Return(errors.New("Connection refused")),
 	)
 	testPingCases := []struct {
-		name          string
-		expStatusCode int
-		expAns        string
 		mockAns       error
+		name          string
+		expAns        string
+		expStatusCode int
 	}{
 		{
 			name:          "PingOK",
@@ -352,6 +355,7 @@ func TestPgDB(t *testing.T) {
 }
 
 func TestGetAll(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	tmpl, _ := template.New("data").Parse(`
 <!DOCTYPE html>
@@ -373,11 +377,11 @@ func TestGetAll(t *testing.T) {
 `
 	ctx := context.Background()
 	storage := storage.NewMemStorage()
-	retrier := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 	mh := metricHandlers{
-		ctx:     ctx,
-		storage: storage,
-		rtr:     retrier,
+		ctx:        ctx,
+		storage:    storage,
+		reqRetrier: reqRetrier,
 	}
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -395,13 +399,14 @@ func TestGetAll(t *testing.T) {
 }
 
 func TestUpdateBatchMetricsJSON(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	storage := storage.NewMemStorage()
-	retrier := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 	mh := metricHandlers{
-		ctx:     ctx,
-		storage: storage,
-		rtr:     retrier,
+		ctx:        ctx,
+		storage:    storage,
+		reqRetrier: reqRetrier,
 	}
 	testRequest := `[{"type": "gauge", "id": "testmetric", "value": 0.1}]`
 

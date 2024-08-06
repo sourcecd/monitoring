@@ -22,7 +22,7 @@ import (
 	"github.com/sourcecd/monitoring/internal/logging"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
-	"github.com/sourcecd/monitoring/internal/retr"
+	"github.com/sourcecd/monitoring/internal/retrier"
 	"github.com/sourcecd/monitoring/internal/storage"
 )
 
@@ -38,9 +38,9 @@ type urlToMetric struct {
 
 // Main type for all metrics methods (get/update, etc...).
 type metricHandlers struct {
-	ctx     context.Context      // handlers context
-	storage storage.StoreMetrics // metric storage interface
-	rtr     *retr.Retr           // pointer to retryer type for api methods
+	ctx        context.Context      // handlers context
+	storage    storage.StoreMetrics // metric storage interface
+	reqRetrier *retrier.Retrier     // pointer to retryer type for api methods
 }
 
 // updateMetrics api method for store single plaintext metric, sending in api url parameters.
@@ -65,7 +65,7 @@ func (mh *metricHandlers) updateMetrics() http.HandlerFunc {
 				http.Error(resp, "can't parse gauge metric", http.StatusBadRequest)
 				return
 			}
-			if err := mh.rtr.UseRetrWM(mh.storage.WriteMetric)(mh.ctx, metric.metricType, metric.metricName, metrictypes.Gauge(fl64)); err != nil {
+			if err := mh.reqRetrier.UseRetrierWM(mh.storage.WriteMetric)(mh.ctx, metric.metricType, metric.metricName, metrictypes.Gauge(fl64)); err != nil {
 				http.Error(resp, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
@@ -75,7 +75,7 @@ func (mh *metricHandlers) updateMetrics() http.HandlerFunc {
 				http.Error(resp, "can't parse counter metric", http.StatusBadRequest)
 				return
 			}
-			if err := mh.rtr.UseRetrWM(mh.storage.WriteMetric)(mh.ctx, metric.metricType, metric.metricName, metrictypes.Counter(i64)); err != nil {
+			if err := mh.reqRetrier.UseRetrierWM(mh.storage.WriteMetric)(mh.ctx, metric.metricType, metric.metricName, metrictypes.Counter(i64)); err != nil {
 				http.Error(resp, "can't store counter metric", http.StatusInternalServerError)
 				return
 			}
@@ -100,7 +100,7 @@ func (mh *metricHandlers) getMetrics() http.HandlerFunc {
 		// selecting what type of metric (gauge/count) will be getting
 		switch mType {
 		case metrictypes.GaugeType:
-			val, err := mh.rtr.UseRetrGetMetric(mh.storage.GetMetric)(mh.ctx, metrictypes.GaugeType, mVal)
+			val, err := mh.reqRetrier.UseRetrierGetMetric(mh.storage.GetMetric)(mh.ctx, metrictypes.GaugeType, mVal)
 			if err != nil {
 				http.Error(resp, "gauge not found", http.StatusNotFound)
 				return
@@ -108,7 +108,7 @@ func (mh *metricHandlers) getMetrics() http.HandlerFunc {
 			resp.WriteHeader(http.StatusOK)
 			_, _ = io.WriteString(resp, fmt.Sprintf("%v\n", val))
 		case metrictypes.CounterType:
-			val, err := mh.rtr.UseRetrGetMetric(mh.storage.GetMetric)(mh.ctx, metrictypes.CounterType, mVal)
+			val, err := mh.reqRetrier.UseRetrierGetMetric(mh.storage.GetMetric)(mh.ctx, metrictypes.CounterType, mVal)
 			if err != nil {
 				http.Error(resp, "counter not found", http.StatusNotFound)
 				return
@@ -141,7 +141,7 @@ func (mh *metricHandlers) getAll() http.HandlerFunc {
 </pre>
 </body>
 </html>`)
-		res, err := mh.rtr.UseRetrGetAllM(mh.storage.GetAllMetricsTxt)(mh.ctx)
+		res, err := mh.reqRetrier.UseRetrierGetAllM(mh.storage.GetAllMetricsTxt)(mh.ctx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -172,13 +172,13 @@ func (mh *metricHandlers) updateMetricsJSON() http.HandlerFunc {
 
 		// selecting metric type (gauge/count) for store metric
 		if resultParsedJSON.MType == metrictypes.GaugeType && resultParsedJSON.Value != nil && resultParsedJSON.ID != "" {
-			if err := mh.rtr.UseRetrWM(mh.storage.WriteMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
+			if err := mh.reqRetrier.UseRetrierWM(mh.storage.WriteMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Gauge(*resultParsedJSON.Value)); err != nil {
 				log.Println(err)
 				http.Error(w, "can't store gauge metric", http.StatusInternalServerError)
 				return
 			}
 		} else if resultParsedJSON.MType == metrictypes.CounterType && resultParsedJSON.Delta != nil && resultParsedJSON.ID != "" {
-			if err := mh.rtr.UseRetrWM(mh.storage.WriteMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
+			if err := mh.reqRetrier.UseRetrierWM(mh.storage.WriteMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID, metrictypes.Counter(*resultParsedJSON.Delta)); err != nil {
 				log.Println(err)
 				http.Error(w, "can't store counter metric", http.StatusInternalServerError)
 				return
@@ -214,7 +214,7 @@ func (mh *metricHandlers) getMetricsJSON() http.HandlerFunc {
 		}
 		enc := json.NewEncoder(w)
 
-		res, err := mh.rtr.UseRetrGetMetric(mh.storage.GetMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID)
+		res, err := mh.reqRetrier.UseRetrierGetMetric(mh.storage.GetMetric)(mh.ctx, resultParsedJSON.MType, resultParsedJSON.ID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
@@ -257,7 +257,7 @@ func (mh *metricHandlers) updateBatchMetricsJSON() http.HandlerFunc {
 		}
 		enc := json.NewEncoder(w)
 
-		if err := mh.rtr.UseRetrWMB(mh.storage.WriteBatchMetrics)(mh.ctx, batchMettricsJSON); err != nil {
+		if err := mh.reqRetrier.UseRetrierWMB(mh.storage.WriteBatchMetrics)(mh.ctx, batchMettricsJSON); err != nil {
 			log.Println(err)
 			http.Error(w, "error to store batch metrics", http.StatusInternalServerError)
 			return
@@ -275,7 +275,7 @@ func (mh *metricHandlers) updateBatchMetricsJSON() http.HandlerFunc {
 func (mh *metricHandlers) dbPing() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// check timeout context
-		ctx, cancel := context.WithTimeout(mh.ctx, mh.rtr.GetTimeoutCtx())
+		ctx, cancel := context.WithTimeout(mh.ctx, mh.reqRetrier.GetTimeoutCtx())
 		defer cancel()
 		if err := mh.storage.Ping(ctx); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -332,10 +332,10 @@ func Run(ctx context.Context, config ConfigArgs) {
 	var store storage.StoreMetrics
 
 	// init retrier
-	rtr := retr.NewRetr()
+	reqRetrier := retrier.NewRetrier()
 
 	// main context timeout (default 30 sec)
-	rtr.SetParams(1*time.Second, 30*time.Second, 3)
+	reqRetrier.SetParams(1*time.Second, 30*time.Second, 3)
 
 	// select db engine as metric storage (postgres or in-memory)
 	if config.DatabaseDsn != "" {
@@ -345,7 +345,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 		}
 		defer pgdb.CloseDB()
 
-		if err := rtr.UseRetrPopDB(pgdb.PopulateDB)(ctx); err != nil {
+		if err := reqRetrier.UseRetrierPopDB(pgdb.PopulateDB)(ctx); err != nil {
 			log.Fatal(err)
 		}
 
@@ -376,9 +376,9 @@ func Run(ctx context.Context, config ConfigArgs) {
 
 	// init metric handlers
 	mh := &metricHandlers{
-		ctx:     ctx,
-		storage: store,
-		rtr:     rtr,
+		ctx:        ctx,
+		storage:    store,
+		reqRetrier: reqRetrier,
 	}
 
 	// init HTTP server config

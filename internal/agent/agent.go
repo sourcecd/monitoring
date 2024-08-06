@@ -38,29 +38,29 @@ var rtMonitorSensGauge = []string{
 type (
 	// Type of system metrics includes interval of polling and some rand value.
 	sysMon struct {
-		mx          sync.RWMutex
+		sync.RWMutex
 		pollCount   metrictypes.Counter
 		randomValue metrictypes.Gauge
 	}
 
 	// MemStats type of memory metrics, fetched from runtime (local) library.
 	MemStats struct {
-		mx sync.RWMutex
+		sync.RWMutex
 		runtime.MemStats
 	}
 
 	// Type of base system metrics like CPU and Memory usage.
 	kernelMetrics struct {
-		mx sync.RWMutex
-		TotalMemory,
-		FreeMemory metrictypes.Gauge
 		CPUutilization []metrictypes.Gauge
+		TotalMemory    metrictypes.Gauge
+		FreeMemory     metrictypes.Gauge
+		sync.RWMutex
 	}
 
 	// Type of collection gauge and counter metrics.
 	jsonModelsMetrics struct {
-		mx               sync.RWMutex
 		jsonMetricsSlice []models.Metrics
+		sync.RWMutex
 	}
 )
 
@@ -78,13 +78,13 @@ func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 
 // updateMetrics function for fetch runtime system metrics.
 func updateMetrics(memstat *MemStats, sysmetrics *sysMon) {
-	memstat.mx.Lock()
-	defer memstat.mx.Unlock()
+	memstat.Lock()
+	defer memstat.Unlock()
 
 	runtime.ReadMemStats(&memstat.MemStats)
 
-	sysmetrics.mx.Lock()
-	defer sysmetrics.mx.Unlock()
+	sysmetrics.Lock()
+	defer sysmetrics.Unlock()
 
 	sysmetrics.pollCount += 1
 	sysmetrics.randomValue = metrictypes.Gauge(rand.New(rand.NewSource(time.Now().UnixNano())).Float64())
@@ -92,8 +92,8 @@ func updateMetrics(memstat *MemStats, sysmetrics *sysMon) {
 
 // encodeJSON function for json metric encode.
 func encodeJSON(jsMetrics *jsonModelsMetrics) (string, error) {
-	jsMetrics.mx.RLock()
-	defer jsMetrics.mx.RUnlock()
+	jsMetrics.RLock()
+	defer jsMetrics.RUnlock()
 
 	jRes, err := json.Marshal(jsMetrics.jsonMetricsSlice)
 	return string(jRes), err
@@ -104,8 +104,8 @@ func updateSysKernMetrics(m *kernelMetrics) {
 	vmstat, _ := mem.VirtualMemory()
 	cpuU, _ := cpu.Percent(time.Second, true)
 
-	m.mx.Lock()
-	defer m.mx.Unlock()
+	m.Lock()
+	defer m.Unlock()
 
 	m.TotalMemory = metrictypes.Gauge(vmstat.Total)
 	m.FreeMemory = metrictypes.Gauge(vmstat.Free)
@@ -116,8 +116,8 @@ func updateSysKernMetrics(m *kernelMetrics) {
 
 // parseRtm function for parse runtime metrics and format it to pre-json struct.
 func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *jsonModelsMetrics, sysM *sysMon) {
-	rtm.mx.RLock()
-	defer rtm.mx.RUnlock()
+	rtm.RLock()
+	defer rtm.RUnlock()
 
 	// use reflect for update struct field by name
 	rtmVal := reflect.ValueOf(rtm).Elem()
@@ -132,8 +132,8 @@ func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *jsonModelsMetrics,
 		addJSONModel(jsonMetrics, targerRtm[i], metrictypes.GaugeType, nil, &fl64)
 	}
 
-	sysM.mx.RLock()
-	defer sysM.mx.RUnlock()
+	sysM.RLock()
+	defer sysM.RUnlock()
 
 	pollCount := sysM.pollCount
 	randomValue := sysM.randomValue
@@ -143,8 +143,8 @@ func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *jsonModelsMetrics,
 
 // parseKernMetrics function for parse cpu and memory metrics and format it to pre-json struct.
 func parseKernMetrics(km *kernelMetrics, j *jsonModelsMetrics) {
-	km.mx.RLock()
-	defer km.mx.RUnlock()
+	km.RLock()
+	defer km.RUnlock()
 
 	TotalMemory := km.TotalMemory
 	FreeMemory := km.FreeMemory
@@ -159,8 +159,8 @@ func parseKernMetrics(km *kernelMetrics, j *jsonModelsMetrics) {
 
 // addJSONModel function for collect parsed metrics to spectial metrics structure.
 func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *float64) {
-	g.mx.Lock()
-	defer g.mx.Unlock()
+	g.Lock()
+	defer g.Unlock()
 
 	g.jsonMetricsSlice = append(g.jsonMetricsSlice, models.Metrics{
 		ID:    id,
@@ -266,9 +266,9 @@ func Run(config ConfigArgs) {
 		// parse full json
 		strToSend, err := encodeJSON(jsonMetricsModel)
 		// clear metrics structure on each iteration
-		jsonMetricsModel.mx.Lock()
+		jsonMetricsModel.Lock()
 		jsonMetricsModel.jsonMetricsSlice = []models.Metrics{}
-		jsonMetricsModel.mx.Unlock()
+		jsonMetricsModel.Unlock()
 		if err != nil {
 			log.Println(err)
 			continue
@@ -282,9 +282,9 @@ func Run(config ConfigArgs) {
 		}
 
 		// reset polling counter when metrics send procedure is success
-		sysMetrics.mx.Lock()
+		sysMetrics.Lock()
 		sysMetrics.pollCount = 0
-		sysMetrics.mx.Unlock()
+		sysMetrics.Unlock()
 
 		// metrics report interval
 		time.Sleep(reportInterval)

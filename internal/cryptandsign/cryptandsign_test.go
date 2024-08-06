@@ -61,7 +61,7 @@ func TestAgentSign(t *testing.T) {
 	}
 
 	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
-	defer ts.Close()
+	t.Cleanup(func() { ts.Close() })
 
 	for _, v := range testCases {
 		t.Run(v.name, func(t *testing.T) {
@@ -101,12 +101,50 @@ func TestServerRespSign(t *testing.T) {
 	for _, v := range testCases {
 		t.Run(v.name, func(t *testing.T) {
 			ts := httptest.NewServer(SignCheck(testServerHTTPHandler, v.seckey))
-			defer ts.Close()
+			t.Cleanup(func() { ts.Close() })
 
-			client := resty.New()
-			testResp, err := client.R().SetBody(testBodyResp).Post(ts.URL)
+			client := resty.New().R()
+			testResp, err := client.SetBody(testBodyResp).Post(ts.URL)
 			require.NoError(t, err)
 			require.Equal(t, v.expresult, testResp.Header().Get(signHeaderType))
+		})
+	}
+}
+
+func TestServerReqSign(t *testing.T) {
+	etalonSign := etalonHmacFunc(seckey, testBodyResp)
+
+	testCases := []struct {
+		Name       string
+		TestHash   string
+		StatusCode int
+	}{
+		{
+			Name:       "correct hash",
+			TestHash:   etalonSign,
+			StatusCode: http.StatusOK,
+		},
+		{
+			Name:       "not allowed hash",
+			TestHash:   "f165b29bd896b6a9dcf5a0f3d5bac45cdbc96d0573a4b1fc1603d6a54acaa6d9",
+			StatusCode: http.StatusBadRequest,
+		},
+		{
+			Name:       "incorrect hash",
+			TestHash:   "wronghash",
+			StatusCode: http.StatusBadRequest,
+		},
+	}
+
+	ts := httptest.NewServer(SignCheck(testServerHTTPHandler, seckey))
+	t.Cleanup(func() { ts.Close() })
+
+	for _, v := range testCases {
+		t.Run(v.Name, func(t *testing.T) {
+			client := resty.New().R()
+			testResp, err := client.SetHeader("HashSHA256", v.TestHash).SetBody(testBodyResp).Post(ts.URL)
+			require.NoError(t, err)
+			require.Equal(t, v.StatusCode, testResp.StatusCode())
 		})
 	}
 }

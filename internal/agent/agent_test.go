@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -18,7 +19,14 @@ import (
 	"github.com/sourcecd/monitoring/internal/models"
 )
 
+func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
+	allBody, _ := io.ReadAll(r.Body)
+	w.WriteHeader(http.StatusOK)
+	w.Write(allBody)
+}
+
 func TestMetricsAgent(t *testing.T) {
+	t.Parallel()
 	metrics := &jsonModelsMetrics{}
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
@@ -52,6 +60,7 @@ func TestMetricsAgent(t *testing.T) {
 }
 
 func TestUpdateSysKernMetrics(t *testing.T) {
+	t.Parallel()
 	cpuCount, _ := cpu.Counts(true)
 	m := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
 	updateSysKernMetrics(m)
@@ -61,6 +70,7 @@ func TestUpdateSysKernMetrics(t *testing.T) {
 }
 
 func TestSendFunc(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, r.Method, "POST")
 
@@ -71,6 +81,7 @@ func TestSendFunc(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("testRequestDone"))
 	}))
+	t.Cleanup(func() { srv.Close() })
 
 	client := resty.New()
 	request := client.R()
@@ -80,10 +91,10 @@ func TestSendFunc(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "testRequestDone", string(response.Body()))
 	require.Equal(t, http.StatusOK, response.StatusCode())
-	srv.Close()
 }
 
 func TestParseRtm(t *testing.T) {
+	t.Parallel()
 	m := &MemStats{}
 	jsonMetrics := &jsonModelsMetrics{}
 	sysMon := &sysMon{}
@@ -98,6 +109,7 @@ func TestParseRtm(t *testing.T) {
 }
 
 func TestParseKernMetrics(t *testing.T) {
+	t.Parallel()
 	cpuCount, _ := cpu.Counts(true)
 	m := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
 	j := &jsonModelsMetrics{}
@@ -107,4 +119,24 @@ func TestParseKernMetrics(t *testing.T) {
 
 	require.Greater(t, len(m.CPUutilization), 0)
 	require.Greater(t, len(j.jsonMetricsSlice), 0)
+}
+
+func TestWorker(t *testing.T) {
+	t.Parallel()
+	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
+	t.Cleanup(func() { ts.Close() })
+
+	id := 1
+	ch1 := make(chan string, 1)
+	ch1 <- "Hello"
+	ch2 := make(chan error, 1)
+	timeout := time.Second
+	keyenc := ""
+	defer close(ch1)
+	defer close(ch2)
+
+	client := resty.New().R()
+
+	go worker(id, ch1, timeout, ts.URL, keyenc, client, ch2)
+	require.NoError(t, <-ch2)
 }

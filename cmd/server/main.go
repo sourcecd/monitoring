@@ -20,6 +20,9 @@ import (
 const interruptAfter = 10
 
 func main() {
+	// Print Build args
+	printBuildFlags()
+
 	// Context for using gracefull shutdown with interrupt signal.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
