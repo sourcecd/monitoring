@@ -29,7 +29,7 @@ type StoreMetrics interface {
 type MemStorage struct {
 	gauge   map[string]metrictypes.Gauge   // for save gauge metrics
 	counter map[string]metrictypes.Counter // for save counter metrics
-	mx      sync.RWMutex
+	sync.RWMutex
 }
 
 // Ping implementation Ping method of storage interface (in-memory storage).
@@ -39,8 +39,8 @@ func (m *MemStorage) Ping(ctx context.Context) error {
 
 // WriteMetric implementation WriteMetric method of storage interface (in-memory storage).
 func (m *MemStorage) WriteMetric(ctx context.Context, mtype, name string, val interface{}) error {
-	m.mx.Lock()
-	defer m.mx.Unlock()
+	m.Lock()
+	defer m.Unlock()
 	// selecting metric type
 	switch mtype {
 	case metrictypes.GaugeType:
@@ -62,8 +62,8 @@ func (m *MemStorage) WriteMetric(ctx context.Context, mtype, name string, val in
 
 // WriteBatchMetrics implementation WriteBatchMetrics method of storage interface (in-memory storage).
 func (m *MemStorage) WriteBatchMetrics(ctx context.Context, metrics []models.Metrics) error {
-	m.mx.Lock()
-	defer m.mx.Unlock()
+	m.Lock()
+	defer m.Unlock()
 	// i think we don't break all batch if one metric failed in batch (use continue)
 	for _, v := range metrics {
 		// selecting metric type
@@ -90,8 +90,8 @@ func (m *MemStorage) WriteBatchMetrics(ctx context.Context, metrics []models.Met
 
 // GetMetric implementation GetMetric method of storage interface (in-memory storage).
 func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interface{}, error) {
-	m.mx.RLock()
-	defer m.mx.RUnlock()
+	m.RLock()
+	defer m.RUnlock()
 	// selecting metric type
 	switch mType {
 	case metrictypes.GaugeType:
@@ -110,8 +110,8 @@ func (m *MemStorage) GetMetric(ctx context.Context, mType, name string) (interfa
 
 // GetAllMetricsTxt implementation GetAllMetricsTxt method of storage interface (in-memory storage).
 func (m *MemStorage) GetAllMetricsTxt(ctx context.Context) (string, error) {
-	m.mx.RLock()
-	defer m.mx.RUnlock()
+	m.RLock()
+	defer m.RUnlock()
 	s := "---Counters---\n"
 	ck := make([]string, 0, len(m.counter))
 	for k := range m.counter {
@@ -141,8 +141,8 @@ func (m *MemStorage) SaveToFile(fname string) error {
 		return err
 	}
 
-	m.mx.RLock()
-	defer m.mx.RUnlock()
+	m.RLock()
+	defer m.RUnlock()
 
 	defer func() {
 		_ = f.Close()
@@ -174,8 +174,8 @@ func (m *MemStorage) ReadFromFile(fname string) error {
 		return err
 	}
 
-	m.mx.Lock()
-	defer m.mx.Unlock()
+	m.Lock()
+	defer m.Unlock()
 
 	defer func() {
 		_ = f.Close()
