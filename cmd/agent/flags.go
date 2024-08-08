@@ -18,6 +18,7 @@ func servEnv(config *agent.ConfigArgs) {
 	k := os.Getenv("KEY")
 	l := os.Getenv("RATE_LIMIT")
 	d := os.Getenv("PPROF_AGENT_ADDRESS")
+	c := os.Getenv("CRYPTO_KEY")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
@@ -53,6 +54,9 @@ func servEnv(config *agent.ConfigArgs) {
 		}
 		config.RateLimit = i
 	}
+	if c != "" {
+		config.PubKeyFile = c
+	}
 }
 
 // Parse cmdline args.
@@ -63,5 +67,6 @@ func servFlags(config *agent.ConfigArgs) {
 	flag.StringVar(&config.KeyEnc, "k", "", "encrypted key")
 	flag.IntVar(&config.RateLimit, "l", 1, "send ratelimit")
 	flag.StringVar(&config.PprofAddr, "d", "", "pprof server bind addres and port")
+	flag.StringVar(&config.PubKeyFile, "crypto-key", "", "path to public asymmetric key")
 	flag.Parse()
 }
