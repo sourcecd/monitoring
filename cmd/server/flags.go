@@ -20,6 +20,7 @@ func servEnv(config *server.ConfigArgs) {
 	d := os.Getenv("DATABASE_DSN")
 	p := os.Getenv("PPROF_SERVER_ADDRESS")
 	k := os.Getenv("KEY")
+	c := os.Getenv("CRYPTO_KEY")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
@@ -57,6 +58,9 @@ func servEnv(config *server.ConfigArgs) {
 	if k != "" {
 		config.KeyEnc = k
 	}
+	if c != "" {
+		config.PrivKeyFile = c
+	}
 }
 
 // Parse cmdline args.
@@ -70,5 +74,6 @@ func servFlags(config *server.ConfigArgs) {
 	flag.StringVar(&config.DatabaseDsn, "d", "", "pg db connect address")
 	flag.StringVar(&config.KeyEnc, "k", "", "encrypted key")
 	flag.StringVar(&config.PprofAddr, "p", "", "Pprof server bind addres and port")
+	flag.StringVar(&config.PrivKeyFile, "crypto-key", "", "path to private asymmetric key")
 	flag.Parse()
 }
