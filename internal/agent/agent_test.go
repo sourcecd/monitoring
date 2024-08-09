@@ -132,11 +132,12 @@ func TestWorker(t *testing.T) {
 	ch2 := make(chan error, 1)
 	timeout := time.Second
 	keyenc := ""
+	pubkeypath := ""
 	defer close(ch1)
 	defer close(ch2)
 
 	client := resty.New().R()
 
-	go worker(id, ch1, timeout, ts.URL, keyenc, client, ch2)
+	go worker(id, ch1, timeout, ts.URL, keyenc, pubkeypath, client, ch2)
 	require.NoError(t, <-ch2)
 }

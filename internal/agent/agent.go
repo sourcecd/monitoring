@@ -171,14 +171,14 @@ func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *f
 }
 
 // function for create parallel workers which send metrics to server.
-func worker(id int, jobs <-chan string, timeout time.Duration, serverHost string, keyenc string, r *resty.Request, errRes chan<- error) {
+func worker(id int, jobs <-chan string, timeout time.Duration, serverHost, keyenc, pubkeypath string, r *resty.Request, errRes chan<- error) {
 	for j := range jobs {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
 
 		// using retry and request sign function
 		err := retry.Do(ctx, backoff, func(ctx context.Context) error {
-			if _, err := cryptandsign.SignNew(send, keyenc)(r, j, serverHost); err != nil {
+			if _, err := cryptandsign.SignNew(cryptandsign.AsymEncryptData(send, pubkeypath), keyenc)(r, j, serverHost); err != nil {
 				return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
 			}
 			return nil
@@ -226,7 +226,7 @@ func Run(config ConfigArgs) {
 
 	// run workers
 	for w := 1; w <= workers; w++ {
-		go worker(w, jobsQueue, timeout, serverHost, config.KeyEnc, r, jobsErr)
+		go worker(w, jobsQueue, timeout, serverHost, config.KeyEnc, config.PubKeyFile, r, jobsErr)
 	}
 
 	// poll runtime metrics

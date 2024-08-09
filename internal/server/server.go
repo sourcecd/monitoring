@@ -288,17 +288,17 @@ func (mh *metricHandlers) dbPing() http.HandlerFunc {
 
 // HTTP router for send requests to special handler/method.
 // Using middleware functions to apply logging, compression, request sign.
-func chiRouter(mh *metricHandlers, keyenc string) chi.Router {
+func chiRouter(mh *metricHandlers, keyenc, privkeypath string) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.updateMetrics(), keyenc))))
+	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymDencryptData(mh.updateMetrics(), privkeypath), keyenc))))
 	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetrics())))
 	r.Get("/", logging.WriteLogging(compression.GzipCompDecomp(mh.getAll())))
 
 	//json
-	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.updateMetricsJSON(), keyenc))))
+	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymDencryptData(mh.updateMetricsJSON(), privkeypath), keyenc))))
 	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetricsJSON())))
-	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.updateBatchMetricsJSON(), keyenc))))
+	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymDencryptData(mh.updateBatchMetricsJSON(), privkeypath), keyenc))))
 
 	//ping
 	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(mh.dbPing())))
@@ -384,7 +384,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 	// init HTTP server config
 	srv := http.Server{
 		Addr:    config.ServerAddr,
-		Handler: chiRouter(mh, config.KeyEnc),
+		Handler: chiRouter(mh, config.KeyEnc, config.PrivKeyFile),
 	}
 
 	// starting http server
