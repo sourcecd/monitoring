@@ -178,7 +178,7 @@ func worker(id int, jobs <-chan string, timeout time.Duration, serverHost, keyen
 
 		// using retry and request sign function
 		err := retry.Do(ctx, backoff, func(ctx context.Context) error {
-			if _, err := cryptandsign.SignNew(cryptandsign.AsymEncryptData(send, pubkeypath), keyenc)(r, j, serverHost); err != nil {
+			if _, err := cryptandsign.AsymEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, j, serverHost); err != nil {
 				return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
 			}
 			return nil
