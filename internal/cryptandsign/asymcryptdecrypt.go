@@ -53,9 +53,14 @@ func AsymDencryptData(h http.HandlerFunc, privkeypath string) http.HandlerFunc {
 				log.Fatal("error parse priv key:", err)
 			}
 
-			ciphertext, err := io.ReadAll(r.Body)
+			ciphertextBase64, err := io.ReadAll(r.Body)
 			if err != nil {
 				http.Error(w, "error read encrypted request", http.StatusBadRequest)
+				return
+			}
+			ciphertext, err := base64.StdEncoding.DecodeString(string(ciphertextBase64))
+			if err != nil {
+				http.Error(w, "error decode base64 string", http.StatusBadRequest)
 				return
 			}
 
