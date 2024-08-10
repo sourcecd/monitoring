@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -28,7 +29,7 @@ func AsymEncryptData(s AgentSendFunc, pubkeypath string) AgentSendFunc {
 				log.Fatal("error parse pub key:", err)
 			}
 
-			ciphertext, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey.(*rsa.PublicKey), []byte(send))
+			ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, publicKey.(*rsa.PublicKey), []byte(send), []byte(""))
 			if err != nil {
 				return nil, err
 			}
@@ -64,7 +65,7 @@ func AsymDencryptData(h http.HandlerFunc, privkeypath string) http.HandlerFunc {
 				return
 			}
 
-			plaintext, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, ciphertext)
+			plaintext, err := rsa.DecryptOAEP(sha256.New(), nil, privateKey, ciphertext, []byte(""))
 			if err != nil {
 				http.Error(w, "error data dencryption", http.StatusBadRequest)
 				return
