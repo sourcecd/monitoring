@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"hash"
 	"io"
 	"log"
 	"net/http"
@@ -15,6 +16,50 @@ import (
 
 	"github.com/go-resty/resty/v2"
 )
+
+func encryptOAEPbyPart(hash hash.Hash, random io.Reader, public *rsa.PublicKey, msg []byte, label []byte) ([]byte, error) {
+	msgLen := len(msg)
+	step := public.Size() - 2*hash.Size() - 2
+	var encryptedBytes []byte
+
+	for start := 0; start < msgLen; start += step {
+		finish := start + step
+		if finish > msgLen {
+			finish = msgLen
+		}
+
+		encryptedBlockBytes, err := rsa.EncryptOAEP(hash, random, public, msg[start:finish], label)
+		if err != nil {
+			return nil, err
+		}
+
+		encryptedBytes = append(encryptedBytes, encryptedBlockBytes...)
+	}
+
+	return encryptedBytes, nil
+}
+
+func decryptOAEPbyPart(hash hash.Hash, random io.Reader, private *rsa.PrivateKey, msg []byte, label []byte) ([]byte, error) {
+	msgLen := len(msg)
+	step := private.PublicKey.Size()
+	var decryptedBytes []byte
+
+	for start := 0; start < msgLen; start += step {
+		finish := start + step
+		if finish > msgLen {
+			finish = msgLen
+		}
+
+		decryptedBlockBytes, err := rsa.DecryptOAEP(hash, random, private, msg[start:finish], label)
+		if err != nil {
+			return nil, err
+		}
+
+		decryptedBytes = append(decryptedBytes, decryptedBlockBytes...)
+	}
+
+	return decryptedBytes, nil
+}
 
 func AsymEncryptData(s AgentSendFunc, pubkeypath string) AgentSendFunc {
 	return func(r *resty.Request, send, serverHost string) (*resty.Response, error) {
@@ -29,7 +74,7 @@ func AsymEncryptData(s AgentSendFunc, pubkeypath string) AgentSendFunc {
 				log.Fatal("error parse pub key:", err)
 			}
 
-			ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, publicKey.(*rsa.PublicKey), []byte(send), []byte(""))
+			ciphertext, err := encryptOAEPbyPart(sha256.New(), rand.Reader, publicKey.(*rsa.PublicKey), []byte(send), []byte(""))
 			if err != nil {
 				return nil, err
 			}
@@ -65,7 +110,7 @@ func AsymDencryptData(h http.HandlerFunc, privkeypath string) http.HandlerFunc {
 				return
 			}
 
-			plaintext, err := rsa.DecryptOAEP(sha256.New(), nil, privateKey, ciphertext, []byte(""))
+			plaintext, err := decryptOAEPbyPart(sha256.New(), nil, privateKey, ciphertext, []byte(""))
 			if err != nil {
 				http.Error(w, "error data dencryption", http.StatusBadRequest)
 				return
