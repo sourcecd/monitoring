@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -9,6 +11,27 @@ import (
 
 	"github.com/sourcecd/monitoring/internal/server"
 )
+
+// config file in json format
+var cfgJSON string
+
+// Parse json config file
+func parseJSONconfigFile(config *server.ConfigArgs) {
+	if cfgJSON == "" {
+		return
+	}
+	f, err := os.Open(cfgJSON)
+	if err != nil {
+		return
+	}
+	jf, err := io.ReadAll(f)
+	if err != nil {
+		return
+	}
+	if err := json.Unmarshal(jf, &config); err != nil {
+		return
+	}
+}
 
 // Parse env args.
 func servEnv(config *server.ConfigArgs) {
@@ -21,6 +44,7 @@ func servEnv(config *server.ConfigArgs) {
 	p := os.Getenv("PPROF_SERVER_ADDRESS")
 	k := os.Getenv("KEY")
 	c := os.Getenv("CRYPTO_KEY")
+	cfg := os.Getenv("CONFIG")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
@@ -61,6 +85,9 @@ func servEnv(config *server.ConfigArgs) {
 	if c != "" {
 		config.PrivKeyFile = c
 	}
+	if cfg != "" {
+		cfgJSON = cfg
+	}
 }
 
 // Parse cmdline args.
@@ -75,5 +102,6 @@ func servFlags(config *server.ConfigArgs) {
 	flag.StringVar(&config.KeyEnc, "k", "", "encrypted key")
 	flag.StringVar(&config.PprofAddr, "p", "", "Pprof server bind addres and port")
 	flag.StringVar(&config.PrivKeyFile, "crypto-key", "", "path to private asymmetric key")
+	flag.StringVar(&cfgJSON, "config", "", "path to main config file (json)")
 	flag.Parse()
 }

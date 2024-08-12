@@ -40,6 +40,8 @@ func main() {
 	servFlags(&config)
 	// Parse env options.
 	servEnv(&config)
+	// Parse json config
+	parseJSONconfigFile(&config)
 
 	// Enable profile server.
 	if config.PprofAddr != "" {
