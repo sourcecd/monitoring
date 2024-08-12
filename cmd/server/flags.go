@@ -22,14 +22,14 @@ func parseJSONconfigFile(config *server.ConfigArgs) {
 	}
 	f, err := os.Open(cfgJSON)
 	if err != nil {
-		return
+		log.Fatal(err)
 	}
 	jf, err := io.ReadAll(f)
 	if err != nil {
-		return
+		log.Fatal(err)
 	}
 	if err := json.Unmarshal(jf, &config); err != nil {
-		return
+		log.Fatal(err)
 	}
 }
 
