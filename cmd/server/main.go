@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/sourcecd/monitoring/internal/server"
@@ -24,7 +25,7 @@ func main() {
 	printBuildFlags()
 
 	// Context for using gracefull shutdown with interrupt signal.
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer cancel()
 
 	// Context run func when context.Done resived.
