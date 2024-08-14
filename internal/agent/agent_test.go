@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -123,6 +124,7 @@ func TestParseKernMetrics(t *testing.T) {
 
 func TestWorker(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
 	t.Cleanup(func() { ts.Close() })
 
@@ -138,6 +140,6 @@ func TestWorker(t *testing.T) {
 
 	client := resty.New().R()
 
-	go worker(id, ch1, timeout, ts.URL, keyenc, pubkeypath, client, ch2)
+	go worker(ctx, id, ch1, timeout, ts.URL, keyenc, pubkeypath, client, ch2)
 	require.NoError(t, <-ch2)
 }

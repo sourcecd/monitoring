@@ -64,6 +64,18 @@ type (
 	}
 )
 
+func shutdownCatcher(ctx context.Context, msg string) bool {
+	select {
+	case <-ctx.Done():
+		if msg != "" {
+			log.Println(msg)
+		}
+		return true
+	default:
+	}
+	return false
+}
+
 // send function for sending monitoring requests.
 func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 	resp, err := r.SetBody(send).Post(serverHost + "/updates/")
@@ -171,19 +183,22 @@ func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *f
 }
 
 // function for create parallel workers which send metrics to server.
-func worker(id int, jobs <-chan string, timeout time.Duration, serverHost, keyenc, pubkeypath string, r *resty.Request, errRes chan<- error) {
+func worker(ctx context.Context, id int, jobs <-chan string, timeout time.Duration, serverHost, keyenc, pubkeypath string, r *resty.Request, errRes chan<- error) {
 	for j := range jobs {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		ctx2, cancel := context.WithTimeout(ctx, timeout)
 		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
 
 		// using retry and request sign function
-		err := retry.Do(ctx, backoff, func(ctx context.Context) error {
+		err := retry.Do(ctx2, backoff, func(ctx context.Context) error {
 			if _, err := cryptandsign.AsymEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, j, serverHost); err != nil {
 				return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
 			}
 			return nil
 		})
 		cancel()
+		if shutdownCatcher(ctx, "worker shutdown") {
+			return
+		}
 		if err != nil {
 			log.Printf("worker%d: %s", id, err.Error())
 			errRes <- err
@@ -195,7 +210,7 @@ func worker(id int, jobs <-chan string, timeout time.Duration, serverHost, keyen
 }
 
 // Run main function for running agent engine.
-func Run(config ConfigArgs) {
+func Run(ctx context.Context, config ConfigArgs) {
 	reportInterval := time.Duration(config.ReportInterval) * time.Second
 	pollInterval := time.Duration(config.PollInterval) * time.Second
 	startCoordChan1 := make(chan struct{})
@@ -226,7 +241,7 @@ func Run(config ConfigArgs) {
 
 	// run workers
 	for w := 1; w <= workers; w++ {
-		go worker(w, jobsQueue, timeout, serverHost, config.KeyEnc, config.PubKeyFile, r, jobsErr)
+		go worker(ctx, w, jobsQueue, timeout, serverHost, config.KeyEnc, config.PubKeyFile, r, jobsErr)
 	}
 
 	// poll runtime metrics
@@ -275,10 +290,18 @@ func Run(config ConfigArgs) {
 		}
 
 		// add metrics payload to send queue
-		jobsQueue <- strToSend
+		select {
+		case jobsQueue <- strToSend:
+		case <-ctx.Done():
+		}
 
-		if err := <-jobsErr; err != nil {
-			continue
+		// get worker errors
+		select {
+		case err := <-jobsErr:
+			if err != nil {
+				continue
+			}
+		case <-ctx.Done():
 		}
 
 		// reset polling counter when metrics send procedure is success
@@ -286,6 +309,10 @@ func Run(config ConfigArgs) {
 		sysMetrics.pollCount = 0
 		sysMetrics.Unlock()
 
+		// catch ctx done
+		if shutdownCatcher(ctx, "GraceFull shutdown") {
+			return
+		}
 		// metrics report interval
 		time.Sleep(reportInterval)
 	}

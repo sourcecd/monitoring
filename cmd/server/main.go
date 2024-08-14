@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"log"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -18,18 +17,19 @@ import (
 )
 
 // Number of seconds before force interrupt program.
-const interruptAfter = 10
+const interruptAfter = 30
 
 func main() {
 	// Print Build args
 	printBuildFlags()
 
 	// Context for using gracefull shutdown with interrupt signal.
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer cancel()
 
 	// Context run func when context.Done resived.
 	context.AfterFunc(ctx, func() {
+		log.Println("received gracefull shutdown signal")
 		time.Sleep(interruptAfter * time.Second)
 		log.Fatal("Interrupted by shutdown time exeeded!!!")
 	})
