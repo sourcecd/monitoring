@@ -293,7 +293,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	}
 }
 
-func TestPgDB(t *testing.T) {
+func TestDB(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
@@ -408,7 +408,7 @@ func TestUpdateBatchMetricsJSON(t *testing.T) {
 		storage:    storage,
 		reqRetrier: reqRetrier,
 	}
-	testRequest := `[{"type": "gauge", "id": "testmetric", "value": 0.1}]`
+	testRequest := `[{"type": "gauge", "id": "testmetric", "value": 0.1}, {"type": "counter", "id": "testmetric2", "delta": 1}]`
 
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testRequest))
@@ -420,7 +420,10 @@ func TestUpdateBatchMetricsJSON(t *testing.T) {
 	res := response.Result()
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	iface, err := storage.GetMetric(ctx, "gauge", "testmetric")
+	ifaceG, err := storage.GetMetric(ctx, "gauge", "testmetric")
 	require.NoError(t, err)
-	require.Equal(t, metrictypes.Gauge(0.1), iface.(metrictypes.Gauge))
+	require.Equal(t, metrictypes.Gauge(0.1), ifaceG.(metrictypes.Gauge))
+	ifaceC, err := storage.GetMetric(ctx, "counter", "testmetric2")
+	require.NoError(t, err)
+	require.Equal(t, metrictypes.Counter(1), ifaceC.(metrictypes.Counter))
 }
