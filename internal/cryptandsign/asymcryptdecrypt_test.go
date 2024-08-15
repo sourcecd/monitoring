@@ -58,5 +58,6 @@ func TestAsymDencryptData(t *testing.T) {
 	res := w.Result()
 	b, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
+	defer res.Body.Close()
 	require.Equal(t, testString, string(b))
 }
