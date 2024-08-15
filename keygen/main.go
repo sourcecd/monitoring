@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func main() {
+func genPrivatePub() ([]byte, *rsa.PublicKey) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		panic(err)
@@ -21,11 +21,10 @@ func main() {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: privateKeyBytes,
 	})
-	err = os.WriteFile("private.pem", privateKeyPEM, 0644)
-	if err != nil {
-		panic(err)
-	}
+	return privateKeyPEM, publicKey
+}
 
+func marshalPubKey(publicKey *rsa.PublicKey) []byte {
 	publicKeyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
 		panic(err)
@@ -34,6 +33,17 @@ func main() {
 		Type:  "RSA PUBLIC KEY",
 		Bytes: publicKeyBytes,
 	})
+	return publicKeyPEM
+}
+
+func main() {
+	privateKey, publicKey := genPrivatePub()
+	err := os.WriteFile("private.pem", privateKey, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	publicKeyPEM := marshalPubKey(publicKey)
 	err = os.WriteFile("public.pem", publicKeyPEM, 0644)
 	if err != nil {
 		panic(err)
