@@ -21,3 +21,8 @@ func TestGetCustomHonnefAnalyzers(t *testing.T) {
 	analyzers := getCustomHonnefAnalyzers(stylecheck.Analyzers, customNamesHonnefAnalyzers)
 	require.Greater(t, len(analyzers), 0)
 }
+
+func TestAllRun(t *testing.T) {
+	all := combineAllAnalyzers()
+	require.Greater(t, len(all), 0)
+}

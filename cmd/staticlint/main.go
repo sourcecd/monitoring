@@ -156,8 +156,8 @@ func osExitChecker(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-// Main func for process analyzers
-func main() {
+// combine all analyzers function
+func combineAllAnalyzers() []*analysis.Analyzer {
 	// Get static check analyzers
 	customStaticCheckAnalyzers = getStaticCheckAnalyzers(staticCheckAnalyzerPrefix)
 
@@ -180,6 +180,15 @@ func main() {
 	allAnalyzers = append(allAnalyzers, customStaticCheckAnalyzers...)
 	allAnalyzers = append(allAnalyzers, customAnalyzers...)
 
+	return allAnalyzers
+}
+
+// Main func for process analyzers
+func main() {
+
+	// combine all analyzers
+	all := combineAllAnalyzers()
+
 	// Multichecker analyzers run
-	multichecker.Main(allAnalyzers...)
+	multichecker.Main(all...)
 }

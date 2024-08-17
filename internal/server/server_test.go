@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 
 	"testing"
@@ -426,4 +427,13 @@ func TestUpdateBatchMetricsJSON(t *testing.T) {
 	ifaceC, err := storage.GetMetric(ctx, "counter", "testmetric2")
 	require.NoError(t, err)
 	require.Equal(t, metrictypes.Counter(1), ifaceC.(metrictypes.Counter))
+}
+
+func TestSaveToFile(t *testing.T) {
+	f, err := os.CreateTemp("", "save-mon-test")
+	require.NoError(t, err)
+	defer f.Close()
+	t.Cleanup(func() { os.Remove(f.Name()) })
+	m := storage.NewMemStorage()
+	saveToFile(m, f.Name(), 0)
 }
