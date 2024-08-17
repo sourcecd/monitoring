@@ -37,6 +37,8 @@ func TestCreatePGDB(t *testing.T) {
 
 	err = pgdb.PopulateDB(ctx)
 	require.NoError(t, err)
+	err = pgdb.PopulateDB(ctx)
+	require.Error(t, err)
 }
 
 func TestWriteMetricPG(t *testing.T) {
@@ -49,6 +51,18 @@ func TestWriteMetricPG(t *testing.T) {
 	require.NoError(t, err)
 	err = pgdb.WriteMetric(ctx, "counter", "testCounter", metrictypes.Counter(1))
 	require.NoError(t, err)
+
+	err = pgdb.WriteMetric(ctx, "gauge", "testGauge2", metrictypes.Gauge(0.1))
+	require.Error(t, err)
+	err = pgdb.WriteMetric(ctx, "counter", "testCounter2", metrictypes.Counter(1))
+	require.Error(t, err)
+	err = pgdb.WriteMetric(ctx, "gauge", "testGauge2", 0.1)
+	require.Error(t, err)
+	err = pgdb.WriteMetric(ctx, "counter", "testCounter2", 1)
+	require.Error(t, err)
+
+	err = pgdb.WriteMetric(ctx, "wrong", "testCounter2", 1)
+	require.Error(t, err)
 }
 
 func TestWriteBatchMetricsPG(t *testing.T) {
@@ -106,6 +120,9 @@ func TestGetMetric(t *testing.T) {
 	i, err = pgdb.GetMetric(ctx, "counter", "testCounter3")
 	require.NoError(t, err)
 	require.Equal(t, metrictypes.Counter(1), i.(metrictypes.Counter))
+
+	_, err = pgdb.GetMetric(ctx, "counter", "testCounter3")
+	require.Error(t, err)
 }
 
 func TestPingPG(t *testing.T) {
