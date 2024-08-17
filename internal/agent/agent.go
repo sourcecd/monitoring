@@ -186,8 +186,7 @@ func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *f
 func worker(ctx context.Context, id int, jobs <-chan string, timeout time.Duration, serverHost, keyenc, pubkeypath string, r *resty.Request, errRes chan<- error) {
 	for j := range jobs {
 		ctx2, cancel := context.WithTimeout(ctx, timeout)
-		//lint:ignore SA9001 https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
-		defer cancel()
+		// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
 		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
 
 		// using retry and request sign function
