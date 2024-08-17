@@ -339,7 +339,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 
 	// select db engine as metric storage (postgres or in-memory)
 	if config.DatabaseDsn != "" {
-		pgdb, err := storage.NewPgDB(config.DatabaseDsn)
+		pgdb, err := storage.NewPgDB(config.DatabaseDsn, nil)
 		if err != nil {
 			log.Fatal(err)
 		}

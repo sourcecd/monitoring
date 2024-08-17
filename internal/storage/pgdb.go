@@ -16,8 +16,18 @@ import (
 )
 
 // Sql query for create monitoring table in postgres DB.
-const populateQuery = `create table if not exists monitoring ( id varchar(64) PRIMARY KEY, 
-mtype varchar(16), delta bigint, value double precision )`
+const (
+	populateQuery = `create table if not exists monitoring ( id varchar(64) PRIMARY KEY, 
+	mtype varchar(16), delta bigint, value double precision )`
+
+	getGaugePrep      = `SELECT value FROM monitoring WHERE id = $1`
+	getCounterPrep    = `SELECT delta FROM monitoring WHERE id = $1`
+	getAllGaugePrep   = `SELECT id, value FROM monitoring WHERE mtype = 'gauge' ORDER BY id`
+	getAllCounterPrep = `SELECT id, delta FROM monitoring WHERE mtype = 'counter' ORDER BY id`
+	insertGaugePrep   = `INSERT INTO monitoring (id, mtype, value) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET value = $3`
+	insertCounterPrep = `INSERT INTO monitoring (id, mtype, delta) VALUES ($1, $2, $3) ON CONFLICT (id) 
+	DO UPDATE SET delta = $3 + (SELECT delta FROM monitoring WHERE id = $1)`
+)
 
 // PgDB singleton type for connect and work with postgres DB.
 type PgDB struct {
@@ -33,32 +43,35 @@ type PgDB struct {
 // Prepare queries
 func (p *PgDB) prepareStatements() error {
 	var err error
-	p.getGaugeStmt, err = p.db.Prepare("SELECT value FROM monitoring WHERE id = $1")
+	p.getGaugeStmt, err = p.db.Prepare(getGaugePrep)
 	if err != nil {
 		return err
 	}
-	p.getCounterStmt, err = p.db.Prepare("SELECT delta FROM monitoring WHERE id = $1")
+	p.getCounterStmt, err = p.db.Prepare(getCounterPrep)
 	if err != nil {
 		return err
 	}
-	p.getAllGaugeStmt, err = p.db.Prepare("SELECT id, value FROM monitoring WHERE mtype = 'gauge' ORDER BY id")
+	p.getAllGaugeStmt, err = p.db.Prepare(getAllGaugePrep)
 	if err != nil {
 		return err
 	}
-	p.getAllCounterStmt, err = p.db.Prepare("SELECT id, delta FROM monitoring WHERE mtype = 'counter' ORDER BY id")
+	p.getAllCounterStmt, err = p.db.Prepare(getAllCounterPrep)
 	if err != nil {
 		return err
 	}
-	p.insertGaugeStmt, err = p.db.Prepare("INSERT INTO monitoring (id, mtype, value) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET value = $3")
+	p.insertGaugeStmt, err = p.db.Prepare(insertGaugePrep)
 	if err != nil {
 		return err
 	}
-	p.insertCounterStmt, err = p.db.Prepare("INSERT INTO monitoring (id, mtype, delta) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET delta = $3 + (SELECT delta FROM monitoring WHERE id = $1)")
+	p.insertCounterStmt, err = p.db.Prepare(insertCounterPrep)
 	return err
 }
 
 // NewPgDB init postgres DB.
-func NewPgDB(dsn string) (*PgDB, error) {
+func NewPgDB(dsn string, edb *sql.DB) (*PgDB, error) {
+	if edb != nil {
+		return &PgDB{db: edb}, nil
+	}
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
