@@ -42,7 +42,7 @@ func TestAsymEncryptData(t *testing.T) {
 	t.Cleanup(func() { srv.Close() })
 	r := resty.New().R()
 
-	snd := AsymEncryptData(testSend, pubKey)
+	snd := AsymmetricEncryptData(testSend, pubKey)
 	resp, err = snd(r, testString, srv.URL)
 	require.NoError(t, err)
 }
@@ -53,7 +53,7 @@ func TestAsymDencryptData(t *testing.T) {
 	br := bytes.NewReader(resp.Body())
 	r := httptest.NewRequest(http.MethodPost, "/", br)
 
-	h := AsymDencryptData(cryptHandlerFunc, privKey)
+	h := AsymmetricDencryptData(cryptHandlerFunc, privKey)
 	h(w, r)
 	res := w.Result()
 	b, err := io.ReadAll(res.Body)

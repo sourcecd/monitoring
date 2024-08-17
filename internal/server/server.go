@@ -291,14 +291,14 @@ func (mh *metricHandlers) dbPing() http.HandlerFunc {
 func chiRouter(mh *metricHandlers, keyenc, privkeypath string) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymDencryptData(mh.updateMetrics(), privkeypath), keyenc))))
+	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymmetricDencryptData(mh.updateMetrics(), privkeypath), keyenc))))
 	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetrics())))
 	r.Get("/", logging.WriteLogging(compression.GzipCompDecomp(mh.getAll())))
 
 	//json
-	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymDencryptData(mh.updateMetricsJSON(), privkeypath), keyenc))))
+	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymmetricDencryptData(mh.updateMetricsJSON(), privkeypath), keyenc))))
 	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetricsJSON())))
-	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymDencryptData(mh.updateBatchMetricsJSON(), privkeypath), keyenc))))
+	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymmetricDencryptData(mh.updateBatchMetricsJSON(), privkeypath), keyenc))))
 
 	//ping
 	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(mh.dbPing())))
