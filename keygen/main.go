@@ -5,13 +5,14 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"log"
 	"os"
 )
 
-func genPrivatePub() ([]byte, *rsa.PublicKey) {
+func genPrivatePub() ([]byte, *rsa.PublicKey, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
-		panic(err)
+		return nil, nil, err
 	}
 
 	publicKey := &privateKey.PublicKey
@@ -21,31 +22,35 @@ func genPrivatePub() ([]byte, *rsa.PublicKey) {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: privateKeyBytes,
 	})
-	return privateKeyPEM, publicKey
+	return privateKeyPEM, publicKey, nil
 }
 
-func marshalPubKey(publicKey *rsa.PublicKey) []byte {
+func marshalPubKey(publicKey *rsa.PublicKey) ([]byte, error) {
 	publicKeyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	publicKeyPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",
 		Bytes: publicKeyBytes,
 	})
-	return publicKeyPEM
+	return publicKeyPEM, nil
 }
 
 func main() {
-	privateKey, publicKey := genPrivatePub()
-	err := os.WriteFile("private.pem", privateKey, 0644)
+	privateKey, publicKey, err := genPrivatePub()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+	if err = os.WriteFile("private.pem", privateKey, 0644); err != nil {
+		log.Fatal(err)
 	}
 
-	publicKeyPEM := marshalPubKey(publicKey)
-	err = os.WriteFile("public.pem", publicKeyPEM, 0644)
+	publicKeyPEM, err := marshalPubKey(publicKey)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+	if err = os.WriteFile("public.pem", publicKeyPEM, 0644); err != nil {
+		log.Fatal(err)
 	}
 }
