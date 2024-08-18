@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/retrier"
 	"github.com/sourcecd/monitoring/internal/storage"
 )
@@ -29,6 +30,7 @@ func bodyRead(resp *http.Response, err error) []byte {
 
 func Example() {
 	keyenc := ""
+	privkeypath := ""
 	ctx := context.Background()
 	storage := storage.NewMemStorage()
 	reqRetrier := retrier.NewRetrier()
@@ -36,9 +38,10 @@ func Example() {
 		ctx:        ctx,
 		storage:    storage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	srv := httptest.NewServer(chiRouter(mh, keyenc))
+	srv := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
 	defer srv.Close()
 	client := srv.Client()
 	// store metric value

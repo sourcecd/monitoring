@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
@@ -122,7 +124,9 @@ func TestParseKernMetrics(t *testing.T) {
 }
 
 func TestWorker(t *testing.T) {
+	var crypt cryptandsign.AsymmetricCrypt = cryptandsign.NewAsymmetricCryptRsa()
 	t.Parallel()
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
 	t.Cleanup(func() { ts.Close() })
 
@@ -132,11 +136,12 @@ func TestWorker(t *testing.T) {
 	ch2 := make(chan error, 1)
 	timeout := time.Second
 	keyenc := ""
+	pubkeypath := ""
 	defer close(ch1)
 	defer close(ch2)
 
 	client := resty.New().R()
 
-	go worker(id, ch1, timeout, ts.URL, keyenc, client, ch2)
+	go worker(ctx, id, ch1, timeout, ts.URL, keyenc, pubkeypath, client, ch2, crypt)
 	require.NoError(t, <-ch2)
 }

@@ -84,3 +84,10 @@ Build commit: testOk
 	require.NoError(t, err)
 	require.Equal(t, expString, string(b))
 }
+
+func TestJSONcfgParse(t *testing.T) {
+	var cfg agent.ConfigArgs
+	cfgJSON = "cfg.json"
+	parseJSONconfigFile(&cfg)
+	require.Equal(t, cfg.ServerAddr, "localhost:8090")
+}

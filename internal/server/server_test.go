@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/retrier"
 	"github.com/sourcecd/monitoring/internal/storage"
@@ -27,7 +29,7 @@ func TestUpdateHandler(t *testing.T) {
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
 
-	var keyenc string
+	var keyenc, privkeypath string
 	type want struct {
 		method     string
 		response   string
@@ -41,9 +43,10 @@ func TestUpdateHandler(t *testing.T) {
 		ctx:        ctx,
 		storage:    testStorage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	ts := httptest.NewServer(chiRouter(mh, keyenc))
+	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
 	t.Cleanup(func() { ts.Close() })
 
 	testCase := []struct {
@@ -138,7 +141,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
 
-	var keyenc string
+	var keyenc, privkeypath string
 	type want struct {
 		method      string
 		response    string
@@ -153,9 +156,10 @@ func TestUpdateHandlerJSON(t *testing.T) {
 		ctx:        ctx,
 		storage:    testStorage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	ts := httptest.NewServer(chiRouter(mh, keyenc))
+	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
 	t.Cleanup(func() { ts.Close() })
 
 	//json api
@@ -293,12 +297,12 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	}
 }
 
-func TestPgDB(t *testing.T) {
+func TestDB(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
 
-	var keyenc string
+	var keyenc, privkeypath string
 	ctrl := gomock.NewController(t)
 	t.Cleanup(func() { ctrl.Finish() })
 
@@ -308,9 +312,10 @@ func TestPgDB(t *testing.T) {
 		ctx:        ctx,
 		storage:    mDB,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	ts := httptest.NewServer(chiRouter(mh, keyenc))
+	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
 	t.Cleanup(func() { ts.Close() })
 
 	gomock.InOrder(
@@ -382,6 +387,7 @@ func TestGetAll(t *testing.T) {
 		ctx:        ctx,
 		storage:    storage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -407,8 +413,9 @@ func TestUpdateBatchMetricsJSON(t *testing.T) {
 		ctx:        ctx,
 		storage:    storage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
-	testRequest := `[{"type": "gauge", "id": "testmetric", "value": 0.1}]`
+	testRequest := `[{"type": "gauge", "id": "testmetric", "value": 0.1}, {"type": "counter", "id": "testmetric2", "delta": 1}]`
 
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(testRequest))
@@ -420,7 +427,19 @@ func TestUpdateBatchMetricsJSON(t *testing.T) {
 	res := response.Result()
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	iface, err := storage.GetMetric(ctx, "gauge", "testmetric")
+	ifaceG, err := storage.GetMetric(ctx, "gauge", "testmetric")
 	require.NoError(t, err)
-	require.Equal(t, metrictypes.Gauge(0.1), iface.(metrictypes.Gauge))
+	require.Equal(t, metrictypes.Gauge(0.1), ifaceG.(metrictypes.Gauge))
+	ifaceC, err := storage.GetMetric(ctx, "counter", "testmetric2")
+	require.NoError(t, err)
+	require.Equal(t, metrictypes.Counter(1), ifaceC.(metrictypes.Counter))
+}
+
+func TestSaveToFile(t *testing.T) {
+	f, err := os.CreateTemp("", "save-mon-test")
+	require.NoError(t, err)
+	defer f.Close()
+	t.Cleanup(func() { os.Remove(f.Name()) })
+	m := storage.NewMemStorage()
+	saveToFile(m, f.Name(), 0)
 }

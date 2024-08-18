@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -9,6 +11,27 @@ import (
 
 	"github.com/sourcecd/monitoring/internal/agent"
 )
+
+// config file in json format
+var cfgJSON string
+
+// Parse json config file
+func parseJSONconfigFile(config *agent.ConfigArgs) {
+	if cfgJSON == "" {
+		return
+	}
+	f, err := os.Open(cfgJSON)
+	if err != nil {
+		log.Fatal(err)
+	}
+	jf, err := io.ReadAll(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := json.Unmarshal(jf, &config); err != nil {
+		log.Fatal(err)
+	}
+}
 
 // Parse env args.
 func servEnv(config *agent.ConfigArgs) {
@@ -18,6 +41,8 @@ func servEnv(config *agent.ConfigArgs) {
 	k := os.Getenv("KEY")
 	l := os.Getenv("RATE_LIMIT")
 	d := os.Getenv("PPROF_AGENT_ADDRESS")
+	c := os.Getenv("CRYPTO_KEY")
+	cfg := os.Getenv("CONFIG")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
@@ -53,6 +78,12 @@ func servEnv(config *agent.ConfigArgs) {
 		}
 		config.RateLimit = i
 	}
+	if c != "" {
+		config.PubKeyFile = c
+	}
+	if cfg != "" {
+		cfgJSON = cfg
+	}
 }
 
 // Parse cmdline args.
@@ -63,5 +94,7 @@ func servFlags(config *agent.ConfigArgs) {
 	flag.StringVar(&config.KeyEnc, "k", "", "encrypted key")
 	flag.IntVar(&config.RateLimit, "l", 1, "send ratelimit")
 	flag.StringVar(&config.PprofAddr, "d", "", "pprof server bind addres and port")
+	flag.StringVar(&config.PubKeyFile, "crypto-key", "", "path to public asymmetric key")
+	flag.StringVar(&cfgJSON, "config", "", "path to main config file (json)")
 	flag.Parse()
 }
