@@ -17,6 +17,17 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+// AsymmetricCrypt interface for
+type AsymmetricCrypt interface {
+	AsymmetricEncryptData(agentSendFunc AgentSendFunc, publicKeyPath string) AgentSendFunc
+	AsymmetricDencryptData(handler http.HandlerFunc, privateKeyPath string) http.HandlerFunc
+}
+
+// AsymmetricCryptRsa RSA implementation
+type AsymmetricCryptRsa struct {
+}
+
+// rsa partial encryption
 func encryptOAEPbyPart(hash hash.Hash, random io.Reader, public *rsa.PublicKey, msg []byte, label []byte) ([]byte, error) {
 	msgLen := len(msg)
 	step := public.Size() - 2*hash.Size() - 2
@@ -39,6 +50,7 @@ func encryptOAEPbyPart(hash hash.Hash, random io.Reader, public *rsa.PublicKey, 
 	return encryptedBytes, nil
 }
 
+// rsa partial decryption
 func decryptOAEPbyPart(hash hash.Hash, random io.Reader, private *rsa.PrivateKey, msg []byte, label []byte) ([]byte, error) {
 	msgLen := len(msg)
 	step := private.PublicKey.Size()
@@ -61,7 +73,8 @@ func decryptOAEPbyPart(hash hash.Hash, random io.Reader, private *rsa.PrivateKey
 	return decryptedBytes, nil
 }
 
-func AsymmetricEncryptData(s AgentSendFunc, pubkeypath string) AgentSendFunc {
+// AsymmetricEncryptData method for encrypt data by rsa
+func (c *AsymmetricCryptRsa) AsymmetricEncryptData(s AgentSendFunc, pubkeypath string) AgentSendFunc {
 	return func(r *resty.Request, send, serverHost string) (*resty.Response, error) {
 		if pubkeypath != "" {
 			publicKeyPEM, err := os.ReadFile(pubkeypath)
@@ -86,7 +99,8 @@ func AsymmetricEncryptData(s AgentSendFunc, pubkeypath string) AgentSendFunc {
 	}
 }
 
-func AsymmetricDencryptData(h http.HandlerFunc, privkeypath string) http.HandlerFunc {
+// AsymmetricDencryptData method for decrypt data by rsa
+func (c *AsymmetricCryptRsa) AsymmetricDencryptData(h http.HandlerFunc, privkeypath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if privkeypath != "" {
 			privateKeyPEM, err := os.ReadFile(privkeypath)
@@ -121,4 +135,9 @@ func AsymmetricDencryptData(h http.HandlerFunc, privkeypath string) http.Handler
 
 		h(w, r)
 	}
+}
+
+// NewAsymmetricCryptRsa init rsa crypt/decrypt
+func NewAsymmetricCryptRsa() *AsymmetricCryptRsa {
+	return &AsymmetricCryptRsa{}
 }

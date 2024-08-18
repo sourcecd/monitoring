@@ -183,7 +183,15 @@ func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *f
 }
 
 // function for create parallel workers which send metrics to server.
-func worker(ctx context.Context, id int, jobs <-chan string, timeout time.Duration, serverHost, keyenc, pubkeypath string, r *resty.Request, errRes chan<- error) {
+func worker(
+	ctx context.Context,
+	id int,
+	jobs <-chan string,
+	timeout time.Duration,
+	serverHost, keyenc, pubkeypath string,
+	r *resty.Request,
+	errRes chan<- error,
+	crypt cryptandsign.AsymmetricCrypt) {
 	for j := range jobs {
 		ctx2, cancel := context.WithTimeout(ctx, timeout)
 		// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
@@ -191,7 +199,7 @@ func worker(ctx context.Context, id int, jobs <-chan string, timeout time.Durati
 
 		// using retry and request sign function
 		err := retry.Do(ctx2, backoff, func(ctx context.Context) error {
-			if _, err := cryptandsign.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, j, serverHost); err != nil {
+			if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, j, serverHost); err != nil {
 				return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
 			}
 			return nil
@@ -222,6 +230,9 @@ func Run(ctx context.Context, config ConfigArgs) {
 	timeout := 30 * time.Second
 	cpuCount, _ := cpu.Counts(true)
 
+	// crypt init
+	crypt := cryptandsign.NewAsymmetricCryptRsa()
+
 	// init metrics structs
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
@@ -242,7 +253,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 
 	// run workers
 	for w := 1; w <= workers; w++ {
-		go worker(ctx, w, jobsQueue, timeout, serverHost, config.KeyEnc, config.PubKeyFile, r, jobsErr)
+		go worker(ctx, w, jobsQueue, timeout, serverHost, config.KeyEnc, config.PubKeyFile, r, jobsErr, crypt)
 	}
 
 	// poll runtime metrics

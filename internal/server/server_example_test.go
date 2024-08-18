@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/retrier"
 	"github.com/sourcecd/monitoring/internal/storage"
 )
@@ -37,6 +38,7 @@ func Example() {
 		ctx:        ctx,
 		storage:    storage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
 	srv := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))

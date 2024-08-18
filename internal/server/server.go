@@ -38,9 +38,10 @@ type urlToMetric struct {
 
 // Main type for all metrics methods (get/update, etc...).
 type metricHandlers struct {
-	ctx        context.Context      // handlers context
-	storage    storage.StoreMetrics // metric storage interface
-	reqRetrier *retrier.Retrier     // pointer to retryer type for api methods
+	ctx        context.Context              // handlers context
+	storage    storage.StoreMetrics         // metric storage interface
+	reqRetrier *retrier.Retrier             // pointer to retryer type for api methods
+	crypt      cryptandsign.AsymmetricCrypt // interface for crypt/decrypt messages
 }
 
 // updateMetrics api method for store single plaintext metric, sending in api url parameters.
@@ -291,14 +292,14 @@ func (mh *metricHandlers) dbPing() http.HandlerFunc {
 func chiRouter(mh *metricHandlers, keyenc, privkeypath string) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymmetricDencryptData(mh.updateMetrics(), privkeypath), keyenc))))
+	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.crypt.AsymmetricDencryptData(mh.updateMetrics(), privkeypath), keyenc))))
 	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetrics())))
 	r.Get("/", logging.WriteLogging(compression.GzipCompDecomp(mh.getAll())))
 
 	//json
-	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymmetricDencryptData(mh.updateMetricsJSON(), privkeypath), keyenc))))
+	r.Post("/update/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.crypt.AsymmetricDencryptData(mh.updateMetricsJSON(), privkeypath), keyenc))))
 	r.Post("/value/", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetricsJSON())))
-	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(cryptandsign.AsymmetricDencryptData(mh.updateBatchMetricsJSON(), privkeypath), keyenc))))
+	r.Post("/updates/", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.crypt.AsymmetricDencryptData(mh.updateBatchMetricsJSON(), privkeypath), keyenc))))
 
 	//ping
 	r.Get("/ping", logging.WriteLogging(compression.GzipCompDecomp(mh.dbPing())))
@@ -379,6 +380,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 		ctx:        ctx,
 		storage:    store,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
 	// init HTTP server config

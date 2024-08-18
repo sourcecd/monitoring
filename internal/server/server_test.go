@@ -17,6 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/retrier"
 	"github.com/sourcecd/monitoring/internal/storage"
@@ -42,6 +43,7 @@ func TestUpdateHandler(t *testing.T) {
 		ctx:        ctx,
 		storage:    testStorage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
@@ -154,6 +156,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 		ctx:        ctx,
 		storage:    testStorage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
@@ -309,6 +312,7 @@ func TestDB(t *testing.T) {
 		ctx:        ctx,
 		storage:    mDB,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
 	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
@@ -383,6 +387,7 @@ func TestGetAll(t *testing.T) {
 		ctx:        ctx,
 		storage:    storage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -408,6 +413,7 @@ func TestUpdateBatchMetricsJSON(t *testing.T) {
 		ctx:        ctx,
 		storage:    storage,
 		reqRetrier: reqRetrier,
+		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 	testRequest := `[{"type": "gauge", "id": "testmetric", "value": 0.1}, {"type": "counter", "id": "testmetric2", "delta": 1}]`
 

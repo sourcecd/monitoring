@@ -36,24 +36,29 @@ func cryptHandlerFunc(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestAsymEncryptData(t *testing.T) {
-	var err error
+	var (
+		crypt AsymmetricCrypt
+		err   error
+	)
+	crypt = NewAsymmetricCryptRsa()
 	pubKey := "test_public.pem"
 	srv := httptest.NewServer(http.HandlerFunc(cryptHandlerFunc))
 	t.Cleanup(func() { srv.Close() })
 	r := resty.New().R()
 
-	snd := AsymmetricEncryptData(testSend, pubKey)
+	snd := crypt.AsymmetricEncryptData(testSend, pubKey)
 	resp, err = snd(r, testString, srv.URL)
 	require.NoError(t, err)
 }
 
 func TestAsymDencryptData(t *testing.T) {
+	var crypt AsymmetricCrypt = NewAsymmetricCryptRsa()
 	privKey := "test_private.pem"
 	w := httptest.NewRecorder()
 	br := bytes.NewReader(resp.Body())
 	r := httptest.NewRequest(http.MethodPost, "/", br)
 
-	h := AsymmetricDencryptData(cryptHandlerFunc, privKey)
+	h := crypt.AsymmetricDencryptData(cryptHandlerFunc, privKey)
 	h(w, r)
 	res := w.Result()
 	b, err := io.ReadAll(res.Body)
