@@ -19,7 +19,7 @@ const signHeaderType = "HashSHA256"
 
 type (
 	// AgentSendFunc type of metric agent function for send metric.
-	AgentSendFunc func(r *resty.Request, send, serverHost string) (*resty.Response, error)
+	AgentSendFunc func(r *resty.Request, send, serverHost, xRealIp string) (*resty.Response, error)
 
 	// HTTP response code.
 	responseData struct {
@@ -113,9 +113,9 @@ func SignCheck(h http.HandlerFunc, seckey string) http.HandlerFunc {
 
 // SignNew main sign function for signing requests.
 func SignNew(s AgentSendFunc, seckey string) AgentSendFunc {
-	return func(r *resty.Request, send, serverHost string) (*resty.Response, error) {
+	return func(r *resty.Request, send, serverHost, xRealIp string) (*resty.Response, error) {
 		if seckey == "" {
-			return s(r, send, serverHost)
+			return s(r, send, serverHost, xRealIp)
 		}
 		// using hmac method
 		hm := hmac.New(sha256.New, []byte(seckey))
@@ -123,6 +123,6 @@ func SignNew(s AgentSendFunc, seckey string) AgentSendFunc {
 		reshm := hm.Sum(nil)
 		reshmstr := hex.EncodeToString(reshm)
 		r.Header.Set(signHeaderType, reshmstr)
-		return s(r, send, serverHost)
+		return s(r, send, serverHost, xRealIp)
 	}
 }

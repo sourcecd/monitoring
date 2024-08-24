@@ -75,7 +75,7 @@ func decryptOAEPbyPart(hash hash.Hash, random io.Reader, private *rsa.PrivateKey
 
 // AsymmetricEncryptData method for encrypt data by rsa
 func (c *AsymmetricCryptRsa) AsymmetricEncryptData(s AgentSendFunc, pubkeypath string) AgentSendFunc {
-	return func(r *resty.Request, send, serverHost string) (*resty.Response, error) {
+	return func(r *resty.Request, send, serverHost, xRealIp string) (*resty.Response, error) {
 		if pubkeypath != "" {
 			publicKeyPEM, err := os.ReadFile(pubkeypath)
 			if err != nil {
@@ -92,10 +92,10 @@ func (c *AsymmetricCryptRsa) AsymmetricEncryptData(s AgentSendFunc, pubkeypath s
 				return nil, err
 			}
 
-			return s(r, base64.StdEncoding.EncodeToString(ciphertext), serverHost)
+			return s(r, base64.StdEncoding.EncodeToString(ciphertext), serverHost, xRealIp)
 		}
 
-		return s(r, send, serverHost)
+		return s(r, send, serverHost, xRealIp)
 	}
 }
 

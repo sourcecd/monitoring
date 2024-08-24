@@ -29,8 +29,8 @@ func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(allBody)
 }
 
-func testSendFunc(r *resty.Request, send, serverHost string) (*resty.Response, error) {
-	return r.SetBody(send).Post(serverHost)
+func testSendFunc(r *resty.Request, send, serverHost, xRealIp string) (*resty.Response, error) {
+	return r.SetHeader("X-Real-IP", xRealIp).SetBody(send).Post(serverHost)
 }
 
 func etalonHmacFunc(seckey, body string) string {
@@ -62,7 +62,7 @@ func TestAgentSign(t *testing.T) {
 
 	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
 	t.Cleanup(func() { ts.Close() })
-
+	testIP := "::1"
 	for _, v := range testCases {
 		t.Run(v.name, func(t *testing.T) {
 			client := resty.New()
@@ -70,7 +70,7 @@ func TestAgentSign(t *testing.T) {
 
 			// Check Main Sign Func
 			testSendF := SignNew(testSendFunc, v.seckey)
-			resp, err := testSendF(rReq, testBodyReq, ts.URL)
+			resp, err := testSendF(rReq, testBodyReq, ts.URL, testIP)
 			require.NoError(t, err)
 			respSign := resp.Header().Get(signHeaderType)
 			require.Equal(t, v.expresult, respSign)

@@ -73,6 +73,7 @@ func TestUpdateSysKernMetrics(t *testing.T) {
 
 func TestSendFunc(t *testing.T) {
 	t.Parallel()
+	testIP := "::1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, r.Method, "POST")
 
@@ -89,7 +90,7 @@ func TestSendFunc(t *testing.T) {
 	request := client.R()
 
 	// send func
-	response, err := send(request, "testRequest", srv.URL)
+	response, err := send(request, "testRequest", srv.URL, testIP)
 	require.NoError(t, err)
 	require.Equal(t, "testRequestDone", string(response.Body()))
 	require.Equal(t, http.StatusOK, response.StatusCode())
@@ -124,6 +125,7 @@ func TestParseKernMetrics(t *testing.T) {
 }
 
 func TestWorker(t *testing.T) {
+	testIP := "::1"
 	var crypt cryptandsign.AsymmetricCrypt = cryptandsign.NewAsymmetricCryptRsa()
 	t.Parallel()
 	ctx := context.Background()
@@ -142,6 +144,6 @@ func TestWorker(t *testing.T) {
 
 	client := resty.New().R()
 
-	go worker(ctx, id, ch1, timeout, ts.URL, keyenc, pubkeypath, client, ch2, crypt)
+	go worker(ctx, id, ch1, timeout, ts.URL, keyenc, pubkeypath, client, ch2, crypt, testIP)
 	require.NoError(t, <-ch2)
 }
