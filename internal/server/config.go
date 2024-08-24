@@ -11,4 +11,5 @@ type ConfigArgs struct {
 	PrivKeyFile     string `json:"crypto_key"`     // path to private key file for asymmetric encryption
 	StoreInterval   int    `json:"store_interval"` // periodic interval before save metrics data to file
 	Restore         bool   `json:"restore"`        // a flag that indicates whether to restore saved metrics from a file when starting the server
+	TrustedSubnet	string `json:"trusted_subnet"` // allow connections from specified subnet
 }
