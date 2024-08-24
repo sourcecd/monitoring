@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -77,8 +78,8 @@ func shutdownCatcher(ctx context.Context, msg string) bool {
 }
 
 // send function for sending monitoring requests.
-func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
-	resp, err := r.SetBody(send).Post(serverHost + "/updates/")
+func send(r *resty.Request, send, serverHost, xRealIp string) (*resty.Response, error) {
+	resp, err := r.SetHeader("X-Real-IP", xRealIp).SetBody(send).Post(serverHost + "/updates/")
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +192,8 @@ func worker(
 	serverHost, keyenc, pubkeypath string,
 	r *resty.Request,
 	errRes chan<- error,
-	crypt cryptandsign.AsymmetricCrypt) {
+	crypt cryptandsign.AsymmetricCrypt,
+	xRealIp string) {
 	for j := range jobs {
 		ctx2, cancel := context.WithTimeout(ctx, timeout)
 		// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
@@ -199,7 +201,7 @@ func worker(
 
 		// using retry and request sign function
 		err := retry.Do(ctx2, backoff, func(ctx context.Context) error {
-			if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, j, serverHost); err != nil {
+			if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, j, serverHost, xRealIp); err != nil {
 				return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
 			}
 			return nil
@@ -218,6 +220,17 @@ func worker(
 	}
 }
 
+// get preferred outbound ip of this machine (some hack)
+func getOutboundIP(serverName string) string {
+	conn, err := net.Dial("udp", serverName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String()
+}
+
 // Run main function for running agent engine.
 func Run(ctx context.Context, config ConfigArgs) {
 	reportInterval := time.Duration(config.ReportInterval) * time.Second
@@ -226,6 +239,10 @@ func Run(ctx context.Context, config ConfigArgs) {
 	startCoordChan2 := make(chan struct{})
 	ratelimit := config.RateLimit
 	serverHost := fmt.Sprintf("http://%s", config.ServerAddr)
+
+	// outgoing ip
+	xRealIp := getOutboundIP(config.ServerAddr)
+
 	// ctx timeout per send
 	timeout := 30 * time.Second
 	cpuCount, _ := cpu.Counts(true)
@@ -253,7 +270,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 
 	// run workers
 	for w := 1; w <= workers; w++ {
-		go worker(ctx, w, jobsQueue, timeout, serverHost, config.KeyEnc, config.PubKeyFile, r, jobsErr, crypt)
+		go worker(ctx, w, jobsQueue, timeout, serverHost, config.KeyEnc, config.PubKeyFile, r, jobsErr, crypt, xRealIp)
 	}
 
 	// poll runtime metrics
