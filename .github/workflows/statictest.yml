@@ -30,4 +30,5 @@ jobs:
 
       - name: Run statictest
         run: |
+          export GODEBUG='gotypesalias=0'
           go vet -vettool=$(which statictest) ./...
