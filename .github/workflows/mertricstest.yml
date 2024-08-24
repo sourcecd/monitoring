@@ -18,7 +18,7 @@ jobs:
 
   metricstest:
     runs-on: ubuntu-latest
-    container: golang:1.23
+    container: golang:1.22
     needs: branchtest
 
     services:
@@ -41,7 +41,8 @@ jobs:
         uses: robinraju/release-downloader@v1.8
         with:
           repository: Yandex-Practicum/go-autotests
-          latest: true
+          latest: false
+          tag: v0.10.12
           fileName: "*"
           out-file-path: .tools
           token: ${{ secrets.GITHUB_TOKEN }}
