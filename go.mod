@@ -1,6 +1,8 @@
 module github.com/sourcecd/monitoring
 
-go 1.23
+go 1.22.1
+
+toolchain go1.22.5
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
