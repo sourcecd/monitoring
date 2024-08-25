@@ -299,18 +299,19 @@ func (mh *metricHandlers) checkIP(subnet string) func(http.Handler) http.Handler
 
 			network, err := netip.ParsePrefix(subnet)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusForbidden)
+				log.Println(err)
+				http.Error(w, "client ip does't belong to allowed subnet", http.StatusForbidden)
 				return
 			}
 
 			ip, err := netip.ParseAddr(r.Header.Get("X-Real-IP"))
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusForbidden)
+				http.Error(w, "can't determine client ip", http.StatusForbidden)
 				return
 			}
 
 			if !network.Contains(ip) {
-				http.Error(w, "ip does't belong to allowed subnet", http.StatusForbidden)
+				http.Error(w, "client ip does't belong to allowed subnet", http.StatusForbidden)
 				return
 			}
 
