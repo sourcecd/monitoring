@@ -294,6 +294,7 @@ func (mh *metricHandlers) checkIP(subnet string) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if subnet == "" {
 				h.ServeHTTP(w, r)
+				return
 			}
 
 			network, err := netip.ParsePrefix(subnet)
