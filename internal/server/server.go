@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -287,10 +288,43 @@ func (mh *metricHandlers) dbPing() http.HandlerFunc {
 	}
 }
 
+// filter access by ip
+func (mh *metricHandlers) checkIP(subnet string) func(http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if subnet == "" {
+				h.ServeHTTP(w, r)
+			}
+
+			network, err := netip.ParsePrefix(subnet)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusForbidden)
+				return
+			}
+
+			ip, err := netip.ParseAddr(r.Header.Get("X-Real-IP"))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusForbidden)
+				return
+			}
+
+			if !network.Contains(ip) {
+				http.Error(w, "ip does't belong to allowed subnet", http.StatusForbidden)
+				return
+			}
+
+			h.ServeHTTP(w, r)
+		})
+	}
+}
+
 // HTTP router for send requests to special handler/method.
 // Using middleware functions to apply logging, compression, request sign.
-func chiRouter(mh *metricHandlers, keyenc, privkeypath string) chi.Router {
+func chiRouter(mh *metricHandlers, keyenc, privkeypath, subnet string) chi.Router {
 	r := chi.NewRouter()
+
+	// filter ip access
+	r.Use(mh.checkIP(subnet))
 
 	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.crypt.AsymmetricDencryptData(mh.updateMetrics(), privkeypath), keyenc))))
 	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetrics())))
@@ -386,7 +420,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 	// init HTTP server config
 	srv := http.Server{
 		Addr:    config.ServerAddr,
-		Handler: chiRouter(mh, config.KeyEnc, config.PrivKeyFile),
+		Handler: chiRouter(mh, config.KeyEnc, config.PrivKeyFile, config.TrustedSubnet),
 	}
 
 	// starting http server
