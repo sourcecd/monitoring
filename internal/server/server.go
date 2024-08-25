@@ -312,7 +312,7 @@ func (mh *metricHandlers) checkIP(subnet string) func(http.Handler) http.Handler
 			}
 
 			if !network.Contains(ip) {
-				log.Println(err)
+				log.Printf("wrong client ip %v", ip)
 				http.Error(w, "client ip does't belong to allowed subnet", http.StatusForbidden)
 				return
 			}
