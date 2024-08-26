@@ -29,7 +29,7 @@ func TestUpdateHandler(t *testing.T) {
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
 
-	var keyenc, privkeypath, subnet string
+	var keyenc, privkeypath string
 	type want struct {
 		method     string
 		response   string
@@ -46,7 +46,7 @@ func TestUpdateHandler(t *testing.T) {
 		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, subnet))
+	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, nil))
 	t.Cleanup(func() { ts.Close() })
 
 	testCase := []struct {
@@ -141,7 +141,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
 
-	var keyenc, privkeypath, subnet string
+	var keyenc, privkeypath string
 	type want struct {
 		method      string
 		response    string
@@ -159,7 +159,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, subnet))
+	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, nil))
 	t.Cleanup(func() { ts.Close() })
 
 	//json api
@@ -302,7 +302,7 @@ func TestDB(t *testing.T) {
 	ctx := context.Background()
 	reqRetrier := retrier.NewRetrier()
 
-	var keyenc, privkeypath, subnet string
+	var keyenc, privkeypath string
 	ctrl := gomock.NewController(t)
 	t.Cleanup(func() { ctrl.Finish() })
 
@@ -315,7 +315,7 @@ func TestDB(t *testing.T) {
 		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, subnet))
+	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, nil))
 	t.Cleanup(func() { ts.Close() })
 
 	gomock.InOrder(

@@ -90,7 +90,7 @@ func servEnv(config *server.ConfigArgs) {
 		cfgJSON = cfg
 	}
 	if t != "" {
-		config.TrustedSubnet = t
+		config.TrustedSubnets = t
 	}
 }
 
@@ -107,6 +107,6 @@ func servFlags(config *server.ConfigArgs) {
 	flag.StringVar(&config.PprofAddr, "p", "", "Pprof server bind addres and port")
 	flag.StringVar(&config.PrivKeyFile, "crypto-key", "", "path to private asymmetric key")
 	flag.StringVar(&cfgJSON, "config", "", "path to main config file (json)")
-	flag.StringVar(&config.TrustedSubnet, "t", "", "allow connections from special subnet")
+	flag.StringVar(&config.TrustedSubnets, "t", "", "allow connections from special subnets (',' separate)")
 	flag.Parse()
 }
