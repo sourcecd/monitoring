@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -289,24 +290,17 @@ func (mh *metricHandlers) dbPing() http.HandlerFunc {
 }
 
 // filter access by ip
-func (mh *metricHandlers) checkIP(subnet string) func(http.Handler) http.Handler {
+func (mh *metricHandlers) checkIP(subnets []netip.Prefix) func(http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if subnet == "" {
+			if subnets == nil {
 				h.ServeHTTP(w, r)
-				return
-			}
-
-			network, err := netip.ParsePrefix(subnet)
-			if err != nil {
-				log.Println(err)
-				http.Error(w, "client ip does't belong to allowed subnet", http.StatusForbidden)
 				return
 			}
 
 			realIP := r.Header.Get("X-Real-IP")
 			if realIP == "" {
-				realIP = r.RemoteAddr
+				realIP = strings.Split(r.RemoteAddr, ":")[0]
 			}
 			ip, err := netip.ParseAddr(realIP)
 			if err != nil {
@@ -315,9 +309,16 @@ func (mh *metricHandlers) checkIP(subnet string) func(http.Handler) http.Handler
 				return
 			}
 
-			if !network.Contains(ip) {
+			isIPtrue := false
+			for _, v := range subnets {
+				if v.Contains(ip) {
+					isIPtrue = true
+					break
+				}
+			}
+			if !isIPtrue {
 				log.Printf("wrong client ip %v", ip)
-				http.Error(w, "client ip does't belong to allowed subnet", http.StatusForbidden)
+				http.Error(w, "client ip does't belong to allowed subnets", http.StatusForbidden)
 				return
 			}
 
@@ -328,11 +329,11 @@ func (mh *metricHandlers) checkIP(subnet string) func(http.Handler) http.Handler
 
 // HTTP router for send requests to special handler/method.
 // Using middleware functions to apply logging, compression, request sign.
-func chiRouter(mh *metricHandlers, keyenc, privkeypath, subnet string) chi.Router {
+func chiRouter(mh *metricHandlers, keyenc, privkeypath string, subnets []netip.Prefix) chi.Router {
 	r := chi.NewRouter()
 
 	// filter ip access
-	r.Use(mh.checkIP(subnet))
+	r.Use(mh.checkIP(subnets))
 
 	r.Post("/update/{type}/{name}/{value}", logging.WriteLogging(compression.GzipCompDecomp(cryptandsign.SignCheck(mh.crypt.AsymmetricDencryptData(mh.updateMetrics(), privkeypath), keyenc))))
 	r.Get("/value/{type}/{val}", logging.WriteLogging(compression.GzipCompDecomp(mh.getMetrics())))
@@ -360,6 +361,23 @@ func saveToFile(m *storage.MemStorage, fname string, duration int) {
 			break
 		}
 	}
+}
+
+// parse subnets
+func parseSubnetPrefixes(subnets string) ([]netip.Prefix, error) {
+	var prefixes []netip.Prefix
+	if subnets == "" {
+		return nil, nil
+	}
+	s := strings.Split(subnets, ",")
+	for _, v := range s {
+		network, err := netip.ParsePrefix(v)
+		if err != nil {
+			return nil, err
+		}
+		prefixes = append(prefixes, network)
+	}
+	return prefixes, nil
 }
 
 // Run main function for coordination and running server engine with HTTP handlers.
@@ -425,10 +443,16 @@ func Run(ctx context.Context, config ConfigArgs) {
 		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
+	// parse net prefixes
+	subnets, err := parseSubnetPrefixes(config.TrustedSubnets)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// init HTTP server config
 	srv := http.Server{
 		Addr:    config.ServerAddr,
-		Handler: chiRouter(mh, config.KeyEnc, config.PrivKeyFile, config.TrustedSubnet),
+		Handler: chiRouter(mh, config.KeyEnc, config.PrivKeyFile, subnets),
 	}
 
 	// starting http server
