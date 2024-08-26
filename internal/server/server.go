@@ -304,7 +304,11 @@ func (mh *metricHandlers) checkIP(subnet string) func(http.Handler) http.Handler
 				return
 			}
 
-			ip, err := netip.ParseAddr(r.Header.Get("X-Real-IP"))
+			realIP := r.Header.Get("X-Real-IP")
+			if realIP == "" {
+				realIP = r.RemoteAddr
+			}
+			ip, err := netip.ParseAddr(realIP)
 			if err != nil {
 				log.Println(err)
 				http.Error(w, "can't determine client ip", http.StatusForbidden)
