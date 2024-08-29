@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package monitoring;
+
+option go_package = "github.com/sourcecd/monitoring/proto;monproto";
+
+message MetricsRequest {
+    message MetricRequest {
+        int64 delta = 1;
+        double value = 2;
+        string id = 3;
+        string mtype = 4;
+    }
+    repeated MetricRequest metric = 1;
+}
+
+message MetricResponse {
+    string error = 1;
+}
+
+service Monitoring {
+    rpc SendMetrics(MetricsRequest) returns (MetricResponse);
+}

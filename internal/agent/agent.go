@@ -23,10 +23,14 @@ import (
 	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
+	"github.com/sourcecd/monitoring/proto"
 )
 
 // Number of workers pool for sending metrics.
-const workers = 3
+const (
+	workers = 3
+	httpPrefix = "http://"
+)
 
 // Sensors list for fetching monitoring metrics.
 var rtMonitorSensGauge = []string{
@@ -187,25 +191,33 @@ func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *f
 func worker(
 	ctx context.Context,
 	id int,
-	jobs <-chan string,
+	jobs <-chan metricSender,
 	timeout time.Duration,
 	serverHost, keyenc, pubkeypath string,
 	r *resty.Request,
 	errRes chan<- error,
 	crypt cryptandsign.AsymmetricCrypt,
 	xRealIp string) {
+	var err error
 	for j := range jobs {
 		ctx2, cancel := context.WithTimeout(ctx, timeout)
-		// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
-		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
 
-		// using retry and request sign function
-		err := retry.Do(ctx2, backoff, func(ctx context.Context) error {
-			if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, j, serverHost, xRealIp); err != nil {
-				return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
-			}
-			return nil
-		})
+		switch v := j.(type) {
+		case string:
+			// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
+			backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+	
+			// using retry and request sign function
+			err = retry.Do(ctx2, backoff, func(ctx context.Context) error {
+				if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, v, httpPrefix+serverHost, xRealIp); err != nil {
+					return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
+				}
+				return nil
+			})
+		case *monproto.MetricsRequest:
+			_, err = protoSend(ctx, serverHost, v)
+		}
+
 		cancel()
 		if shutdownCatcher(ctx, "worker shutdown") {
 			return
@@ -233,12 +245,15 @@ func getOutboundIP(serverName string) string {
 
 // Run main function for running agent engine.
 func Run(ctx context.Context, config ConfigArgs) {
+	var (
+		metricSend metricSender
+		err error
+	)
 	reportInterval := time.Duration(config.ReportInterval) * time.Second
 	pollInterval := time.Duration(config.PollInterval) * time.Second
 	startCoordChan1 := make(chan struct{})
 	startCoordChan2 := make(chan struct{})
 	ratelimit := config.RateLimit
-	serverHost := fmt.Sprintf("http://%s", config.ServerAddr)
 
 	// outgoing ip
 	xRealIp := getOutboundIP(config.ServerAddr)
@@ -257,7 +272,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 	jsonMetricsModel := &jsonModelsMetrics{}
 
 	// init channels for workers
-	jobsQueue := make(chan string, ratelimit)
+	jobsQueue := make(chan metricSender, ratelimit)
 	jobsErr := make(chan error, ratelimit)
 
 	// init resty client
@@ -270,7 +285,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 
 	// run workers
 	for w := 1; w <= workers; w++ {
-		go worker(ctx, w, jobsQueue, timeout, serverHost, config.KeyEnc, config.PubKeyFile, r, jobsErr, crypt, xRealIp)
+		go worker(ctx, w, jobsQueue, timeout, config.ServerAddr, config.KeyEnc, config.PubKeyFile, r, jobsErr, crypt, xRealIp)
 	}
 
 	// poll runtime metrics
@@ -307,8 +322,12 @@ func Run(ctx context.Context, config ConfigArgs) {
 		<-startCoordChan2
 		parseKernMetrics(kernelSysMetrics, jsonMetricsModel)
 
-		// parse full json
-		strToSend, err := encodeJSON(jsonMetricsModel)
+		// parse full json or proto
+		if config.Grpc {
+			metricSend, err = encodeProto(jsonMetricsModel)
+		} else {
+			metricSend, err = encodeJSON(jsonMetricsModel)
+		}
 		// clear metrics structure on each iteration
 		jsonMetricsModel.Lock()
 		jsonMetricsModel.jsonMetricsSlice = []models.Metrics{}
@@ -320,7 +339,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 
 		// add metrics payload to send queue
 		select {
-		case jobsQueue <- strToSend:
+		case jobsQueue <- metricSend:
 		case <-ctx.Done():
 		}
 

@@ -43,6 +43,7 @@ func servEnv(config *agent.ConfigArgs) {
 	d := os.Getenv("PPROF_AGENT_ADDRESS")
 	c := os.Getenv("CRYPTO_KEY")
 	cfg := os.Getenv("CONFIG")
+	g := os.Getenv("GRPC")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
@@ -84,6 +85,9 @@ func servEnv(config *agent.ConfigArgs) {
 	if cfg != "" {
 		cfgJSON = cfg
 	}
+	if g == "true" {
+		config.Grpc = true
+	}
 }
 
 // Parse cmdline args.
@@ -96,5 +100,6 @@ func servFlags(config *agent.ConfigArgs) {
 	flag.StringVar(&config.PprofAddr, "d", "", "pprof server bind addres and port")
 	flag.StringVar(&config.PubKeyFile, "crypto-key", "", "path to public asymmetric key")
 	flag.StringVar(&cfgJSON, "config", "", "path to main config file (json)")
+	flag.BoolVar(&config.Grpc, "grpc", false, "enable grpc")
 	flag.Parse()
 }
