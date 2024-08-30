@@ -33,15 +33,20 @@ func (m *MonitoringServer) SendMetrics(ctx context.Context, in *monproto.Metrics
 	}, nil
 }
 
-func ListenGrpc(grpcServer string, mh *metricHandlers) {
+func ListenGrpc(grpcServer string, mh *metricHandlers) error {
 	l, err := net.Listen("tcp", grpcServer)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	s := grpc.NewServer()
+	go func() {
+		<-mh.ctx.Done()
+		s.GracefulStop()
+	}()
 	monproto.RegisterMonitoringServer(s, &MonitoringServer{mh: mh})
 	if err := s.Serve(l); err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }

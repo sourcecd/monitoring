@@ -456,7 +456,10 @@ func Run(ctx context.Context, config ConfigArgs) {
 	}
 	// grpc server
 	if config.GrpcServer != "" {
-		go ListenGrpc(config.GrpcServer, mh)
+		g.Go(func() error {
+			logging.Log.Info("Starting grpc server on", zap.String("address", config.GrpcServer))
+			return ListenGrpc(config.GrpcServer, mh)
+		})
 	}
 
 	// starting http server
