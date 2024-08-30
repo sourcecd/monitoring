@@ -28,7 +28,7 @@ import (
 
 // Number of workers pool for sending metrics.
 const (
-	workers = 3
+	workers    = 3
 	httpPrefix = "http://"
 )
 
@@ -206,7 +206,7 @@ func worker(
 		case string:
 			// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
 			backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
-	
+
 			// using retry and request sign function
 			err = retry.Do(ctx2, backoff, func(ctx context.Context) error {
 				if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, v, httpPrefix+serverHost, xRealIp); err != nil {
@@ -247,7 +247,7 @@ func getOutboundIP(serverName string) string {
 func Run(ctx context.Context, config ConfigArgs) {
 	var (
 		metricSend metricSender
-		err error
+		err        error
 	)
 	reportInterval := time.Duration(config.ReportInterval) * time.Second
 	pollInterval := time.Duration(config.PollInterval) * time.Second

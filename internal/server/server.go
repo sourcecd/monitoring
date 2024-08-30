@@ -382,8 +382,6 @@ func parseSubnetPrefixes(subnets string) ([]netip.Prefix, error) {
 
 // Run main function for coordination and running server engine with HTTP handlers.
 func Run(ctx context.Context, config ConfigArgs) {
-	go ListenGrpc()
-
 	// configure logging level for log subsystem
 	if err := logging.Setup(config.Loglevel); err != nil {
 		log.Fatal(err)
@@ -455,6 +453,10 @@ func Run(ctx context.Context, config ConfigArgs) {
 	srv := http.Server{
 		Addr:    config.ServerAddr,
 		Handler: chiRouter(mh, config.KeyEnc, config.PrivKeyFile, subnets),
+	}
+	// grpc server
+	if config.GrpcServer != "" {
+		go ListenGrpc(config.GrpcServer, mh)
 	}
 
 	// starting http server

@@ -11,11 +11,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type metricSender interface {}
+type metricSender interface{}
 
 var opts = []grpc_retry.CallOption{
 	grpc_retry.WithMax(3),
-	grpc_retry.WithBackoff(grpc_retry.BackoffExponential(1*time.Second)),
+	grpc_retry.WithBackoff(grpc_retry.BackoffExponential(1 * time.Second)),
 }
 
 // encodeProto function for protobuf metric encode.
@@ -33,7 +33,7 @@ func encodeProto(metrics *jsonModelsMetrics) (*monproto.MetricsRequest, error) {
 			}
 			metricsProto.Metric = append(metricsProto.Metric, &monproto.MetricsRequest_MetricRequest{
 				Mtype: v.MType,
-				Id: v.ID,
+				Id:    v.ID,
 				Delta: *v.Delta,
 			})
 		case "gauge":
@@ -43,7 +43,7 @@ func encodeProto(metrics *jsonModelsMetrics) (*monproto.MetricsRequest, error) {
 			}
 			metricsProto.Metric = append(metricsProto.Metric, &monproto.MetricsRequest_MetricRequest{
 				Mtype: v.MType,
-				Id: v.ID,
+				Id:    v.ID,
 				Value: *v.Value,
 			})
 		default:
@@ -54,8 +54,8 @@ func encodeProto(metrics *jsonModelsMetrics) (*monproto.MetricsRequest, error) {
 }
 
 func grpcConnector(grpcServerHost string) (*grpc.ClientConn, error) {
-	conn, err := grpc.NewClient(grpcServerHost, 
-		grpc.WithTransportCredentials(insecure.NewCredentials()), 
+	conn, err := grpc.NewClient(grpcServerHost,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(opts...)))
 	if err != nil {
 		return nil, err
