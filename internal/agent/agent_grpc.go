@@ -53,6 +53,7 @@ func encodeProto(metrics *jsonModelsMetrics) (*monproto.MetricsRequest, error) {
 	return &metricsProto, nil
 }
 
+// grpc connect method
 func grpcConnector(grpcServerHost string) (*grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(grpcServerHost,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -63,6 +64,7 @@ func grpcConnector(grpcServerHost string) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
+// protobuf send
 func protoSend(ctx context.Context, grpcServerHost string, metricsReq *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
 	conn, err := grpcConnector(grpcServerHost)
 	if err != nil {

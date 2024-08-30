@@ -15,6 +15,7 @@ type MonitoringServer struct {
 	mh *metricHandlers
 }
 
+// SendMetrics grpc method for send metrics
 func (m *MonitoringServer) SendMetrics(ctx context.Context, in *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
 	var metrics []models.Metrics
 	for _, metric := range in.Metric {
@@ -33,6 +34,7 @@ func (m *MonitoringServer) SendMetrics(ctx context.Context, in *monproto.Metrics
 	}, nil
 }
 
+// ListenGrpc method for accept grpc messages
 func ListenGrpc(grpcServer string, mh *metricHandlers) error {
 	l, err := net.Listen("tcp", grpcServer)
 	if err != nil {
