@@ -133,7 +133,7 @@ func TestWorker(t *testing.T) {
 	t.Cleanup(func() { ts.Close() })
 
 	id := 1
-	ch1 := make(chan string, 1)
+	ch1 := make(chan metricSender, 1)
 	ch1 <- "Hello"
 	ch2 := make(chan error, 1)
 	timeout := time.Second
