@@ -5,10 +5,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"github.com/sourcecd/monitoring/proto"
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	monproto "github.com/sourcecd/monitoring/proto"
 )
 
 type metricSender interface{}

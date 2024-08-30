@@ -24,7 +24,7 @@ import (
 	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
-	"github.com/sourcecd/monitoring/proto"
+	monproto "github.com/sourcecd/monitoring/proto"
 )
 
 // Number of workers pool for sending metrics.
