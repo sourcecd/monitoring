@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,8 +29,8 @@ import (
 
 // Number of workers pool for sending metrics.
 const (
-	workers    = 3
-	httpPrefix = "http://"
+	workers   = 3
+	httpProto = "http"
 )
 
 // Sensors list for fetching monitoring metrics.
@@ -206,10 +207,13 @@ func worker(
 		case string:
 			// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
 			backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+			if !strings.HasPrefix(serverHost, httpProto) {
+				serverHost = "http://" + serverHost
+			}
 
 			// using retry and request sign function
 			err = retry.Do(ctx2, backoff, func(ctx context.Context) error {
-				if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, v, httpPrefix+serverHost, xRealIp); err != nil {
+				if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, v, serverHost, xRealIp); err != nil {
 					return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
 				}
 				return nil
