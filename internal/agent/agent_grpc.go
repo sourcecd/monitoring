@@ -10,6 +10,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	monproto "github.com/sourcecd/monitoring/proto"
+
+	"google.golang.org/grpc/encoding/gzip" // Install the gzip compressor
 )
 
 type metricSender interface{}
@@ -58,7 +60,9 @@ func encodeProto(metrics *jsonModelsMetrics) (*monproto.MetricsRequest, error) {
 func grpcConnector(grpcServerHost string) (*grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(grpcServerHost,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(opts...)))
+		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
+		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(opts...)),
+	)
 	if err != nil {
 		return nil, err
 	}

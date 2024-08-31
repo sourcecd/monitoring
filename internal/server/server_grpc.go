@@ -11,6 +11,9 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	_ "google.golang.org/grpc/encoding/gzip" // Install the gzip compressor
+	"google.golang.org/grpc/metadata"
+
 	"github.com/sourcecd/monitoring/internal/models"
 	monproto "github.com/sourcecd/monitoring/proto"
 )
@@ -22,6 +25,9 @@ type MonitoringServer struct {
 
 // SendMetrics grpc method for send metrics
 func (m *MonitoringServer) SendMetrics(ctx context.Context, in *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		grpc_ctxtags.Extract(ctx).Set("grpc-accept-encoding", md.Get("grpc-accept-encoding"))
+	}
 	var metrics []models.Metrics
 	for _, metric := range in.Metric {
 		metrics = append(metrics, models.Metrics{
@@ -53,7 +59,7 @@ func ListenGrpc(grpcServer string, mh *metricHandlers) error {
 
 	s := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
+			grpc_ctxtags.UnaryServerInterceptor(),
 			grpc_zap.UnaryServerInterceptor(zapLogger),
 			grpc_recovery.UnaryServerInterceptor(),
 		),
