@@ -458,7 +458,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 	if config.GrpcServer != "" {
 		g.Go(func() error {
 			logging.Log.Info("Starting grpc server on", zap.String("address", config.GrpcServer))
-			return ListenGrpc(config.GrpcServer, mh)
+			return ListenGrpc(config.GrpcServer, subnets, mh)
 		})
 	}
 

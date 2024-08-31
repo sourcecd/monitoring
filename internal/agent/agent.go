@@ -219,7 +219,7 @@ func worker(
 				return nil
 			})
 		case *monproto.MetricsRequest:
-			_, err = protoSend(ctx, serverHost, v)
+			_, err = protoSend(ctx, serverHost, xRealIp, v)
 		}
 
 		cancel()

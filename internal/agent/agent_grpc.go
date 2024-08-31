@@ -8,6 +8,7 @@ import (
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	monproto "github.com/sourcecd/monitoring/proto"
 
@@ -70,14 +71,15 @@ func grpcConnector(grpcServerHost string) (*grpc.ClientConn, error) {
 }
 
 // protobuf send
-func protoSend(ctx context.Context, grpcServerHost string, metricsReq *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
+func protoSend(ctx context.Context, grpcServerHost, xRealIp string, metricsReq *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
 	conn, err := grpcConnector(grpcServerHost)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 	c := monproto.NewMonitoringClient(conn)
-	resp, err := c.SendMetrics(ctx, metricsReq)
+	md := metadata.New(map[string]string{"X-Real-IP": xRealIp})
+	resp, err := c.SendMetrics(metadata.NewOutgoingContext(ctx, md), metricsReq)
 	if err != nil {
 		return nil, err
 	}

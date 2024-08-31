@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"net/netip"
 
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
@@ -11,8 +12,10 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // Install the gzip compressor
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/sourcecd/monitoring/internal/models"
 	monproto "github.com/sourcecd/monitoring/proto"
@@ -20,15 +23,40 @@ import (
 
 type MonitoringServer struct {
 	monproto.UnimplementedMonitoringServer
-	mh *metricHandlers
+	mh      *metricHandlers
+	subnets []netip.Prefix
 }
 
 // SendMetrics grpc method for send metrics
 func (m *MonitoringServer) SendMetrics(ctx context.Context, in *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
+	var (
+		xrealip []string
+		metrics []models.Metrics
+	)
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		xrealip = md.Get("x-real-ip")
 		grpc_ctxtags.Extract(ctx).Set("grpc-accept-encoding", md.Get("grpc-accept-encoding"))
+		grpc_ctxtags.Extract(ctx).Set("x-real-ip", xrealip)
 	}
-	var metrics []models.Metrics
+	if m.subnets != nil {
+		if len(xrealip) == 0 {
+			return nil, status.Error(codes.PermissionDenied, "cant' find src ip")
+		}
+		ip, err := netip.ParseAddr(xrealip[0])
+		if err != nil {
+			return nil, status.Error(codes.PermissionDenied, "error parse src ip")
+		}
+		isIPtrue := false
+		for _, v := range m.subnets {
+			if v.Contains(ip) {
+				isIPtrue = true
+				break
+			}
+		}
+		if !isIPtrue {
+			return nil, status.Error(codes.PermissionDenied, "src ip not allowed")
+		}
+	}
 	for _, metric := range in.Metric {
 		metrics = append(metrics, models.Metrics{
 			ID:    metric.Id,
@@ -46,7 +74,7 @@ func (m *MonitoringServer) SendMetrics(ctx context.Context, in *monproto.Metrics
 }
 
 // ListenGrpc method for accept grpc messages
-func ListenGrpc(grpcServer string, mh *metricHandlers) error {
+func ListenGrpc(grpcServer string, subnets []netip.Prefix, mh *metricHandlers) error {
 	cfg := zap.NewProductionConfig()
 	zapLogger, _ := cfg.Build()
 
@@ -68,7 +96,7 @@ func ListenGrpc(grpcServer string, mh *metricHandlers) error {
 		<-mh.ctx.Done()
 		s.GracefulStop()
 	}()
-	monproto.RegisterMonitoringServer(s, &MonitoringServer{mh: mh})
+	monproto.RegisterMonitoringServer(s, &MonitoringServer{subnets: subnets, mh: mh})
 	if err := s.Serve(l); err != nil {
 		return err
 	}
