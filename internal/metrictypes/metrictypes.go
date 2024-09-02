@@ -1,6 +1,12 @@
 // Package metrictypes with metric types.
 package metrictypes
 
+import (
+	"sync"
+
+	"github.com/sourcecd/monitoring/internal/models"
+)
+
 const (
 	// Gauge.
 	GaugeType = "gauge"
@@ -14,3 +20,11 @@ type (
 	// Counter base type for counter metric - int64
 	Counter int64
 )
+
+// JSONModelsMetrics type of collection gauge and counter metrics.
+type JSONModelsMetrics struct {
+	JSONMetricsSlice []models.Metrics
+	sync.RWMutex
+}
+
+type MetricSender interface{}

@@ -1,4 +1,5 @@
-package agent
+// Package agentwithgrpc with agent grpc transport
+package agentwithgrpc
 
 import (
 	"context"
@@ -10,25 +11,24 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/sourcecd/monitoring/internal/metrictypes"
 	monproto "github.com/sourcecd/monitoring/proto"
 
 	"google.golang.org/grpc/encoding/gzip" // Install the gzip compressor
 )
-
-type metricSender interface{}
 
 var opts = []grpc_retry.CallOption{
 	grpc_retry.WithMax(3),
 	grpc_retry.WithBackoff(grpc_retry.BackoffExponential(1 * time.Second)),
 }
 
-// encodeProto function for protobuf metric encode.
-func encodeProto(metrics *jsonModelsMetrics) (*monproto.MetricsRequest, error) {
+// EncodeProto function for protobuf metric encode.
+func EncodeProto(metrics *metrictypes.JSONModelsMetrics) (*monproto.MetricsRequest, error) {
 	var metricsProto monproto.MetricsRequest
 	metrics.RLock()
 	defer metrics.RUnlock()
 
-	for _, v := range metrics.jsonMetricsSlice {
+	for _, v := range metrics.JSONMetricsSlice {
 		switch v.MType {
 		case "counter":
 			if v.Delta == nil {
@@ -70,8 +70,8 @@ func grpcConnector(grpcServerHost string) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-// protobuf send
-func protoSend(ctx context.Context, grpcServerHost, xRealIp string, metricsReq *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
+// ProtoSend send
+func ProtoSend(ctx context.Context, grpcServerHost, xRealIp string, metricsReq *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
 	conn, err := grpcConnector(grpcServerHost)
 	if err != nil {
 		return nil, err

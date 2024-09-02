@@ -29,7 +29,7 @@ func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
 
 func TestMetricsAgent(t *testing.T) {
 	t.Parallel()
-	metrics := &jsonModelsMetrics{}
+	metrics := &metrictypes.JSONModelsMetrics{}
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
 	numCount := 1
@@ -48,9 +48,9 @@ func TestMetricsAgent(t *testing.T) {
 
 	updateMetrics(rtm, sysMetrics)
 
-	metrics.jsonMetricsSlice = append(metrics.jsonMetricsSlice, models.Metrics{ID: "RandomValue", MType: metrictypes.GaugeType, Value: (*float64)(&testrandVal)})
-	metrics.jsonMetricsSlice = append(metrics.jsonMetricsSlice, models.Metrics{ID: "PollCount", MType: metrictypes.CounterType, Delta: (*int64)(&testPollCount)})
-	metrics.jsonMetricsSlice = append(metrics.jsonMetricsSlice, models.Metrics{ID: "Alloc", MType: metrictypes.GaugeType, Value: &fl64})
+	metrics.JSONMetricsSlice = append(metrics.JSONMetricsSlice, models.Metrics{ID: "RandomValue", MType: metrictypes.GaugeType, Value: (*float64)(&testrandVal)})
+	metrics.JSONMetricsSlice = append(metrics.JSONMetricsSlice, models.Metrics{ID: "PollCount", MType: metrictypes.CounterType, Delta: (*int64)(&testPollCount)})
+	metrics.JSONMetricsSlice = append(metrics.JSONMetricsSlice, models.Metrics{ID: "Alloc", MType: metrictypes.GaugeType, Value: &fl64})
 
 	jres, err := encodeJSON(metrics)
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestSendFunc(t *testing.T) {
 func TestParseRtm(t *testing.T) {
 	t.Parallel()
 	m := &MemStats{}
-	jsonMetrics := &jsonModelsMetrics{}
+	jsonMetrics := &metrictypes.JSONModelsMetrics{}
 	sysMon := &sysMon{}
 
 	runtime.ReadMemStats(&m.MemStats)
@@ -108,20 +108,20 @@ func TestParseRtm(t *testing.T) {
 	parseRtm(m, rtMonitorSensGauge, jsonMetrics, sysMon)
 
 	require.Greater(t, m.Alloc, uint64(0))
-	require.Greater(t, len(jsonMetrics.jsonMetricsSlice), 0)
+	require.Greater(t, len(jsonMetrics.JSONMetricsSlice), 0)
 }
 
 func TestParseKernMetrics(t *testing.T) {
 	t.Parallel()
 	cpuCount, _ := cpu.Counts(true)
 	m := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
-	j := &jsonModelsMetrics{}
+	j := &metrictypes.JSONModelsMetrics{}
 
 	// parse kernel metrics
 	parseKernMetrics(m, j)
 
 	require.Greater(t, len(m.CPUutilization), 0)
-	require.Greater(t, len(j.jsonMetricsSlice), 0)
+	require.Greater(t, len(j.JSONMetricsSlice), 0)
 }
 
 func TestWorker(t *testing.T) {
@@ -133,7 +133,7 @@ func TestWorker(t *testing.T) {
 	t.Cleanup(func() { ts.Close() })
 
 	id := 1
-	ch1 := make(chan metricSender, 1)
+	ch1 := make(chan metrictypes.MetricSender, 1)
 	ch1 <- "Hello"
 	ch2 := make(chan error, 1)
 	timeout := time.Second

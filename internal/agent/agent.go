@@ -21,6 +21,7 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 
+	"github.com/sourcecd/monitoring/internal/agentwithgrpc"
 	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
@@ -60,12 +61,6 @@ type (
 		CPUutilization []metrictypes.Gauge
 		TotalMemory    metrictypes.Gauge
 		FreeMemory     metrictypes.Gauge
-		sync.RWMutex
-	}
-
-	// Type of collection gauge and counter metrics.
-	jsonModelsMetrics struct {
-		jsonMetricsSlice []models.Metrics
 		sync.RWMutex
 	}
 )
@@ -109,11 +104,11 @@ func updateMetrics(memstat *MemStats, sysmetrics *sysMon) {
 }
 
 // encodeJSON function for json metric encode.
-func encodeJSON(jsMetrics *jsonModelsMetrics) (string, error) {
+func encodeJSON(jsMetrics *metrictypes.JSONModelsMetrics) (string, error) {
 	jsMetrics.RLock()
 	defer jsMetrics.RUnlock()
 
-	jRes, err := json.Marshal(jsMetrics.jsonMetricsSlice)
+	jRes, err := json.Marshal(jsMetrics.JSONMetricsSlice)
 	return string(jRes), err
 }
 
@@ -133,7 +128,7 @@ func updateSysKernMetrics(m *kernelMetrics) {
 }
 
 // parseRtm function for parse runtime metrics and format it to pre-json struct.
-func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *jsonModelsMetrics, sysM *sysMon) {
+func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *metrictypes.JSONModelsMetrics, sysM *sysMon) {
 	rtm.RLock()
 	defer rtm.RUnlock()
 
@@ -160,7 +155,7 @@ func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *jsonModelsMetrics,
 }
 
 // parseKernMetrics function for parse cpu and memory metrics and format it to pre-json struct.
-func parseKernMetrics(km *kernelMetrics, j *jsonModelsMetrics) {
+func parseKernMetrics(km *kernelMetrics, j *metrictypes.JSONModelsMetrics) {
 	km.RLock()
 	defer km.RUnlock()
 
@@ -176,11 +171,11 @@ func parseKernMetrics(km *kernelMetrics, j *jsonModelsMetrics) {
 }
 
 // addJSONModel function for collect parsed metrics to spectial metrics structure.
-func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *float64) {
+func addJSONModel(g *metrictypes.JSONModelsMetrics, id, mtype string, delta *int64, value *float64) {
 	g.Lock()
 	defer g.Unlock()
 
-	g.jsonMetricsSlice = append(g.jsonMetricsSlice, models.Metrics{
+	g.JSONMetricsSlice = append(g.JSONMetricsSlice, models.Metrics{
 		ID:    id,
 		MType: mtype,
 		Delta: delta,
@@ -192,7 +187,7 @@ func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *f
 func worker(
 	ctx context.Context,
 	id int,
-	jobs <-chan metricSender,
+	jobs <-chan metrictypes.MetricSender,
 	timeout time.Duration,
 	serverHost, keyenc, pubkeypath string,
 	r *resty.Request,
@@ -219,7 +214,7 @@ func worker(
 				return nil
 			})
 		case *monproto.MetricsRequest:
-			_, err = protoSend(ctx, serverHost, xRealIp, v)
+			_, err = agentwithgrpc.ProtoSend(ctx, serverHost, xRealIp, v)
 		}
 
 		cancel()
@@ -250,7 +245,7 @@ func getOutboundIP(serverName string) string {
 // Run main function for running agent engine.
 func Run(ctx context.Context, config ConfigArgs) {
 	var (
-		metricSend metricSender
+		metricSend metrictypes.MetricSender
 		err        error
 	)
 	reportInterval := time.Duration(config.ReportInterval) * time.Second
@@ -273,10 +268,10 @@ func Run(ctx context.Context, config ConfigArgs) {
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
 	kernelSysMetrics := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
-	jsonMetricsModel := &jsonModelsMetrics{}
+	jsonMetricsModel := &metrictypes.JSONModelsMetrics{}
 
 	// init channels for workers
-	jobsQueue := make(chan metricSender, ratelimit)
+	jobsQueue := make(chan metrictypes.MetricSender, ratelimit)
 	jobsErr := make(chan error, ratelimit)
 
 	// init resty client
@@ -328,13 +323,13 @@ func Run(ctx context.Context, config ConfigArgs) {
 
 		// parse full json or proto
 		if config.Grpc {
-			metricSend, err = encodeProto(jsonMetricsModel)
+			metricSend, err = agentwithgrpc.EncodeProto(jsonMetricsModel)
 		} else {
 			metricSend, err = encodeJSON(jsonMetricsModel)
 		}
 		// clear metrics structure on each iteration
 		jsonMetricsModel.Lock()
-		jsonMetricsModel.jsonMetricsSlice = []models.Metrics{}
+		jsonMetricsModel.JSONMetricsSlice = []models.Metrics{}
 		jsonMetricsModel.Unlock()
 		if err != nil {
 			log.Println(err)
