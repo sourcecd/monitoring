@@ -29,7 +29,8 @@ func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
 
 func TestMetricsAgent(t *testing.T) {
 	t.Parallel()
-	metrics := &jsonModelsMetrics{}
+	metrics := &metrictypes.JSONModelsMetrics{}
+	mJSON := &jsonSendString{}
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
 	numCount := 1
@@ -48,13 +49,13 @@ func TestMetricsAgent(t *testing.T) {
 
 	updateMetrics(rtm, sysMetrics)
 
-	metrics.jsonMetricsSlice = append(metrics.jsonMetricsSlice, models.Metrics{ID: "RandomValue", MType: metrictypes.GaugeType, Value: (*float64)(&testrandVal)})
-	metrics.jsonMetricsSlice = append(metrics.jsonMetricsSlice, models.Metrics{ID: "PollCount", MType: metrictypes.CounterType, Delta: (*int64)(&testPollCount)})
-	metrics.jsonMetricsSlice = append(metrics.jsonMetricsSlice, models.Metrics{ID: "Alloc", MType: metrictypes.GaugeType, Value: &fl64})
+	metrics.JSONMetricsSlice = append(metrics.JSONMetricsSlice, models.Metrics{ID: "RandomValue", MType: metrictypes.GaugeType, Value: (*float64)(&testrandVal)})
+	metrics.JSONMetricsSlice = append(metrics.JSONMetricsSlice, models.Metrics{ID: "PollCount", MType: metrictypes.CounterType, Delta: (*int64)(&testPollCount)})
+	metrics.JSONMetricsSlice = append(metrics.JSONMetricsSlice, models.Metrics{ID: "Alloc", MType: metrictypes.GaugeType, Value: &fl64})
 
-	jres, err := encodeJSON(metrics)
+	jres, err := encodeJSON(metrics, mJSON)
 	require.NoError(t, err)
-	require.JSONEq(t, jres, expMetricURLs)
+	require.JSONEq(t, jres.jsonString, expMetricURLs)
 
 	require.Equal(t, metrictypes.Counter(numCount), sysMetrics.pollCount)
 	require.NotEqual(t, metrictypes.Gauge(randVal), sysMetrics.randomValue)
@@ -73,6 +74,7 @@ func TestUpdateSysKernMetrics(t *testing.T) {
 
 func TestSendFunc(t *testing.T) {
 	t.Parallel()
+	testIP := "::1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, r.Method, "POST")
 
@@ -89,7 +91,7 @@ func TestSendFunc(t *testing.T) {
 	request := client.R()
 
 	// send func
-	response, err := send(request, "testRequest", srv.URL)
+	response, err := send(request, "testRequest", srv.URL, testIP)
 	require.NoError(t, err)
 	require.Equal(t, "testRequestDone", string(response.Body()))
 	require.Equal(t, http.StatusOK, response.StatusCode())
@@ -98,7 +100,7 @@ func TestSendFunc(t *testing.T) {
 func TestParseRtm(t *testing.T) {
 	t.Parallel()
 	m := &MemStats{}
-	jsonMetrics := &jsonModelsMetrics{}
+	jsonMetrics := &metrictypes.JSONModelsMetrics{}
 	sysMon := &sysMon{}
 
 	runtime.ReadMemStats(&m.MemStats)
@@ -107,41 +109,45 @@ func TestParseRtm(t *testing.T) {
 	parseRtm(m, rtMonitorSensGauge, jsonMetrics, sysMon)
 
 	require.Greater(t, m.Alloc, uint64(0))
-	require.Greater(t, len(jsonMetrics.jsonMetricsSlice), 0)
+	require.Greater(t, len(jsonMetrics.JSONMetricsSlice), 0)
 }
 
 func TestParseKernMetrics(t *testing.T) {
 	t.Parallel()
 	cpuCount, _ := cpu.Counts(true)
 	m := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
-	j := &jsonModelsMetrics{}
+	j := &metrictypes.JSONModelsMetrics{}
 
 	// parse kernel metrics
 	parseKernMetrics(m, j)
 
 	require.Greater(t, len(m.CPUutilization), 0)
-	require.Greater(t, len(j.jsonMetricsSlice), 0)
+	require.Greater(t, len(j.JSONMetricsSlice), 0)
 }
 
 func TestWorker(t *testing.T) {
-	var crypt cryptandsign.AsymmetricCrypt = cryptandsign.NewAsymmetricCryptRsa()
+	testIP := "::1"
+	crypt := cryptandsign.NewAsymmetricCryptRsa()
 	t.Parallel()
 	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
 	t.Cleanup(func() { ts.Close() })
 
 	id := 1
-	ch1 := make(chan string, 1)
-	ch1 <- "Hello"
+	ch1 := make(chan metrictypes.MetricSender, 1)
 	ch2 := make(chan error, 1)
 	timeout := time.Second
-	keyenc := ""
-	pubkeypath := ""
+	client := resty.New().R()
+	mJSON := &jsonSendString{
+		crypt:   crypt,
+		timeout: timeout,
+		r:       client,
+	}
+	mJSON.jsonString = "Hello"
+	ch1 <- mJSON
 	defer close(ch1)
 	defer close(ch2)
 
-	client := resty.New().R()
-
-	go worker(ctx, id, ch1, timeout, ts.URL, keyenc, pubkeypath, client, ch2, crypt)
+	go worker(ctx, id, ch1, ts.URL, ch2, testIP)
 	require.NoError(t, <-ch2)
 }

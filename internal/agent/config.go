@@ -9,4 +9,5 @@ type ConfigArgs struct {
 	ReportInterval int    `json:"report_interval"` // periodic interval between metric reporting to server
 	PollInterval   int    `json:"poll_interval"`   // periodic interval between collecting metrics
 	RateLimit      int    `json:"rate_limit"`      // number of requests sending to server at the same time
+	Grpc           bool   `json:"grpc"`            // enable grpc transport
 }

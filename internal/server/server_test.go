@@ -46,7 +46,7 @@ func TestUpdateHandler(t *testing.T) {
 		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
+	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, nil))
 	t.Cleanup(func() { ts.Close() })
 
 	testCase := []struct {
@@ -159,7 +159,7 @@ func TestUpdateHandlerJSON(t *testing.T) {
 		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
+	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, nil))
 	t.Cleanup(func() { ts.Close() })
 
 	//json api
@@ -315,7 +315,7 @@ func TestDB(t *testing.T) {
 		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
+	ts := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, nil))
 	t.Cleanup(func() { ts.Close() })
 
 	gomock.InOrder(

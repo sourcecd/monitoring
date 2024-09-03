@@ -45,6 +45,8 @@ func servEnv(config *server.ConfigArgs) {
 	k := os.Getenv("KEY")
 	c := os.Getenv("CRYPTO_KEY")
 	cfg := os.Getenv("CONFIG")
+	t := os.Getenv("TRUSTED_SUBNET")
+	g := os.Getenv("GRPC_SERVER")
 
 	if s != "" {
 		if len(strings.Split(s, ":")) == 2 {
@@ -88,6 +90,12 @@ func servEnv(config *server.ConfigArgs) {
 	if cfg != "" {
 		cfgJSON = cfg
 	}
+	if t != "" {
+		config.TrustedSubnets = t
+	}
+	if g != "" {
+		config.GrpcServer = g
+	}
 }
 
 // Parse cmdline args.
@@ -103,5 +111,7 @@ func servFlags(config *server.ConfigArgs) {
 	flag.StringVar(&config.PprofAddr, "p", "", "Pprof server bind addres and port")
 	flag.StringVar(&config.PrivKeyFile, "crypto-key", "", "path to private asymmetric key")
 	flag.StringVar(&cfgJSON, "config", "", "path to main config file (json)")
+	flag.StringVar(&config.TrustedSubnets, "t", "", "allow connections from special subnets (',' separate)")
+	flag.StringVar(&config.GrpcServer, "grpc-server", "", "grpc server for agent metrics")
 	flag.Parse()
 }

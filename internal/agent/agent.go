@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,13 +21,17 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 
+	"github.com/sourcecd/monitoring/internal/agentwithgrpc"
 	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
 )
 
 // Number of workers pool for sending metrics.
-const workers = 3
+const (
+	workers   = 3
+	httpProto = "http"
+)
 
 // Sensors list for fetching monitoring metrics.
 var rtMonitorSensGauge = []string{
@@ -33,6 +39,33 @@ var rtMonitorSensGauge = []string{
 	"HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse",
 	"MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "OtherSys", "PauseTotalNs",
 	"StackInuse", "StackSys", "Sys", "TotalAlloc", "GCCPUFraction", "NumForcedGC", "NumGC",
+}
+
+type jsonSendString struct {
+	jsonString string
+	r          *resty.Request
+	crypt      *cryptandsign.AsymmetricCryptRsa
+	keyenc     string
+	pubkeypath string
+	timeout    time.Duration
+}
+
+func (j *jsonSendString) Send(ctx context.Context, serverHost, xRealIp string) error {
+	ctx2, cancel := context.WithTimeout(ctx, j.timeout)
+	defer cancel()
+	// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
+	backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+	if !strings.HasPrefix(serverHost, httpProto) {
+		serverHost = "http://" + serverHost
+	}
+
+	// using retry and request sign function
+	return retry.Do(ctx2, backoff, func(ctx context.Context) error {
+		if _, err := j.crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, j.keyenc), j.pubkeypath)(j.r, j.jsonString, serverHost, xRealIp); err != nil {
+			return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
+		}
+		return nil
+	})
 }
 
 type (
@@ -56,12 +89,6 @@ type (
 		FreeMemory     metrictypes.Gauge
 		sync.RWMutex
 	}
-
-	// Type of collection gauge and counter metrics.
-	jsonModelsMetrics struct {
-		jsonMetricsSlice []models.Metrics
-		sync.RWMutex
-	}
 )
 
 func shutdownCatcher(ctx context.Context, msg string) bool {
@@ -77,8 +104,8 @@ func shutdownCatcher(ctx context.Context, msg string) bool {
 }
 
 // send function for sending monitoring requests.
-func send(r *resty.Request, send, serverHost string) (*resty.Response, error) {
-	resp, err := r.SetBody(send).Post(serverHost + "/updates/")
+func send(r *resty.Request, send, serverHost, xRealIp string) (*resty.Response, error) {
+	resp, err := r.SetHeader("X-Real-IP", xRealIp).SetBody(send).Post(serverHost + "/updates/")
 	if err != nil {
 		return nil, err
 	}
@@ -103,12 +130,13 @@ func updateMetrics(memstat *MemStats, sysmetrics *sysMon) {
 }
 
 // encodeJSON function for json metric encode.
-func encodeJSON(jsMetrics *jsonModelsMetrics) (string, error) {
+func encodeJSON(jsMetrics *metrictypes.JSONModelsMetrics, mJSON *jsonSendString) (*jsonSendString, error) {
 	jsMetrics.RLock()
 	defer jsMetrics.RUnlock()
 
-	jRes, err := json.Marshal(jsMetrics.jsonMetricsSlice)
-	return string(jRes), err
+	jRes, err := json.Marshal(jsMetrics.JSONMetricsSlice)
+	mJSON.jsonString = string(jRes)
+	return mJSON, err
 }
 
 // updateSysKernMetrics function for fetch cpu and memory metrics.
@@ -127,7 +155,7 @@ func updateSysKernMetrics(m *kernelMetrics) {
 }
 
 // parseRtm function for parse runtime metrics and format it to pre-json struct.
-func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *jsonModelsMetrics, sysM *sysMon) {
+func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *metrictypes.JSONModelsMetrics, sysM *sysMon) {
 	rtm.RLock()
 	defer rtm.RUnlock()
 
@@ -154,7 +182,7 @@ func parseRtm(rtm *MemStats, targerRtm []string, jsonMetrics *jsonModelsMetrics,
 }
 
 // parseKernMetrics function for parse cpu and memory metrics and format it to pre-json struct.
-func parseKernMetrics(km *kernelMetrics, j *jsonModelsMetrics) {
+func parseKernMetrics(km *kernelMetrics, j *metrictypes.JSONModelsMetrics) {
 	km.RLock()
 	defer km.RUnlock()
 
@@ -170,11 +198,11 @@ func parseKernMetrics(km *kernelMetrics, j *jsonModelsMetrics) {
 }
 
 // addJSONModel function for collect parsed metrics to spectial metrics structure.
-func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *float64) {
+func addJSONModel(g *metrictypes.JSONModelsMetrics, id, mtype string, delta *int64, value *float64) {
 	g.Lock()
 	defer g.Unlock()
 
-	g.jsonMetricsSlice = append(g.jsonMetricsSlice, models.Metrics{
+	g.JSONMetricsSlice = append(g.JSONMetricsSlice, models.Metrics{
 		ID:    id,
 		MType: mtype,
 		Delta: delta,
@@ -183,28 +211,9 @@ func addJSONModel(g *jsonModelsMetrics, id, mtype string, delta *int64, value *f
 }
 
 // function for create parallel workers which send metrics to server.
-func worker(
-	ctx context.Context,
-	id int,
-	jobs <-chan string,
-	timeout time.Duration,
-	serverHost, keyenc, pubkeypath string,
-	r *resty.Request,
-	errRes chan<- error,
-	crypt cryptandsign.AsymmetricCrypt) {
+func worker(ctx context.Context, id int, jobs <-chan metrictypes.MetricSender, serverHost string, errRes chan<- error, xRealIp string) {
 	for j := range jobs {
-		ctx2, cancel := context.WithTimeout(ctx, timeout)
-		// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
-		backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
-
-		// using retry and request sign function
-		err := retry.Do(ctx2, backoff, func(ctx context.Context) error {
-			if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, j, serverHost); err != nil {
-				return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
-			}
-			return nil
-		})
-		cancel()
+		err := j.Send(ctx, serverHost, xRealIp)
 		if shutdownCatcher(ctx, "worker shutdown") {
 			return
 		}
@@ -218,14 +227,32 @@ func worker(
 	}
 }
 
+// get preferred outbound ip of this machine (some hack)
+func getOutboundIP(serverName string) string {
+	conn, err := net.Dial("udp", serverName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String()
+}
+
 // Run main function for running agent engine.
 func Run(ctx context.Context, config ConfigArgs) {
+	var (
+		metricSend metrictypes.MetricSender
+		err        error
+	)
 	reportInterval := time.Duration(config.ReportInterval) * time.Second
 	pollInterval := time.Duration(config.PollInterval) * time.Second
 	startCoordChan1 := make(chan struct{})
 	startCoordChan2 := make(chan struct{})
 	ratelimit := config.RateLimit
-	serverHost := fmt.Sprintf("http://%s", config.ServerAddr)
+
+	// outgoing ip
+	xRealIp := getOutboundIP(config.ServerAddr)
+
 	// ctx timeout per send
 	timeout := 30 * time.Second
 	cpuCount, _ := cpu.Counts(true)
@@ -237,15 +264,23 @@ func Run(ctx context.Context, config ConfigArgs) {
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
 	kernelSysMetrics := &kernelMetrics{CPUutilization: make([]metrictypes.Gauge, cpuCount)}
-	jsonMetricsModel := &jsonModelsMetrics{}
+	jsonMetricsModel := &metrictypes.JSONModelsMetrics{}
 
 	// init channels for workers
-	jobsQueue := make(chan string, ratelimit)
+	jobsQueue := make(chan metrictypes.MetricSender, ratelimit)
 	jobsErr := make(chan error, ratelimit)
 
 	// init resty client
 	client := resty.New()
 	r := client.R().SetHeader("Content-Type", "application/json")
+
+	mJSON := &jsonSendString{
+		r:          r,
+		crypt:      crypt,
+		keyenc:     config.KeyEnc,
+		pubkeypath: config.PubKeyFile,
+		timeout:    timeout,
+	}
 
 	if config.ReportInterval <= 0 || config.PollInterval <= 0 {
 		log.Fatal("wrong intervals")
@@ -253,7 +288,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 
 	// run workers
 	for w := 1; w <= workers; w++ {
-		go worker(ctx, w, jobsQueue, timeout, serverHost, config.KeyEnc, config.PubKeyFile, r, jobsErr, crypt)
+		go worker(ctx, w, jobsQueue, config.ServerAddr, jobsErr, xRealIp)
 	}
 
 	// poll runtime metrics
@@ -290,11 +325,15 @@ func Run(ctx context.Context, config ConfigArgs) {
 		<-startCoordChan2
 		parseKernMetrics(kernelSysMetrics, jsonMetricsModel)
 
-		// parse full json
-		strToSend, err := encodeJSON(jsonMetricsModel)
+		// parse full json or proto
+		if config.Grpc {
+			metricSend, err = agentwithgrpc.EncodeProto(jsonMetricsModel)
+		} else {
+			metricSend, err = encodeJSON(jsonMetricsModel, mJSON)
+		}
 		// clear metrics structure on each iteration
 		jsonMetricsModel.Lock()
-		jsonMetricsModel.jsonMetricsSlice = []models.Metrics{}
+		jsonMetricsModel.JSONMetricsSlice = []models.Metrics{}
 		jsonMetricsModel.Unlock()
 		if err != nil {
 			log.Println(err)
@@ -303,7 +342,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 
 		// add metrics payload to send queue
 		select {
-		case jobsQueue <- strToSend:
+		case jobsQueue <- metricSend:
 		case <-ctx.Done():
 		}
 

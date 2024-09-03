@@ -29,8 +29,7 @@ func bodyRead(resp *http.Response, err error) []byte {
 }
 
 func Example() {
-	keyenc := ""
-	privkeypath := ""
+	var keyenc, privkeypath string
 	ctx := context.Background()
 	storage := storage.NewMemStorage()
 	reqRetrier := retrier.NewRetrier()
@@ -41,7 +40,7 @@ func Example() {
 		crypt:      cryptandsign.NewAsymmetricCryptRsa(),
 	}
 
-	srv := httptest.NewServer(chiRouter(mh, keyenc, privkeypath))
+	srv := httptest.NewServer(chiRouter(mh, keyenc, privkeypath, nil))
 	defer srv.Close()
 	client := srv.Client()
 	// store metric value

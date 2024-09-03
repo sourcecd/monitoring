@@ -17,8 +17,8 @@ var (
 	testString = "test_string"
 )
 
-func testSend(r *resty.Request, send, serverHost string) (*resty.Response, error) {
-	resp, err := r.SetBody(send).Post(serverHost)
+func testSend(r *resty.Request, send, serverHost, xRealIp string) (*resty.Response, error) {
+	resp, err := r.SetHeader("X-Real-IP", xRealIp).SetBody(send).Post(serverHost)
 	if err != nil {
 		return nil, err
 	}
@@ -36,6 +36,7 @@ func cryptHandlerFunc(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestAsymEncryptData(t *testing.T) {
+	testIP := "::1"
 	var (
 		crypt AsymmetricCrypt
 		err   error
@@ -47,7 +48,7 @@ func TestAsymEncryptData(t *testing.T) {
 	r := resty.New().R()
 
 	snd := crypt.AsymmetricEncryptData(testSend, pubKey)
-	resp, err = snd(r, testString, srv.URL)
+	resp, err = snd(r, testString, srv.URL, testIP)
 	require.NoError(t, err)
 }
 
