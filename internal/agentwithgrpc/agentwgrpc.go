@@ -22,8 +22,17 @@ var opts = []grpc_retry.CallOption{
 	grpc_retry.WithBackoff(grpc_retry.BackoffExponential(1 * time.Second)),
 }
 
+type MonMetricReq struct {
+	MonProtoReq *monproto.MetricsRequest
+}
+
+func (m *MonMetricReq) Send(ctx context.Context, serverHost, xRealIp string) error {
+	_, err := protoSend(ctx, serverHost, xRealIp, m.MonProtoReq)
+	return err
+}
+
 // EncodeProto function for protobuf metric encode.
-func EncodeProto(metrics *metrictypes.JSONModelsMetrics) (*monproto.MetricsRequest, error) {
+func EncodeProto(metrics *metrictypes.JSONModelsMetrics) (*MonMetricReq, error) {
 	var metricsProto monproto.MetricsRequest
 	metrics.RLock()
 	defer metrics.RUnlock()
@@ -54,7 +63,9 @@ func EncodeProto(metrics *metrictypes.JSONModelsMetrics) (*monproto.MetricsReque
 			log.Println("unknown metric type")
 		}
 	}
-	return &metricsProto, nil
+	return &MonMetricReq{
+		MonProtoReq: &metricsProto,
+	}, nil
 }
 
 // grpc connect method
@@ -71,7 +82,7 @@ func grpcConnector(grpcServerHost string) (*grpc.ClientConn, error) {
 }
 
 // ProtoSend send
-func ProtoSend(ctx context.Context, grpcServerHost, xRealIp string, metricsReq *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
+func protoSend(ctx context.Context, grpcServerHost, xRealIp string, metricsReq *monproto.MetricsRequest) (*monproto.MetricResponse, error) {
 	conn, err := grpcConnector(grpcServerHost)
 	if err != nil {
 		return nil, err

@@ -25,7 +25,6 @@ import (
 	"github.com/sourcecd/monitoring/internal/cryptandsign"
 	"github.com/sourcecd/monitoring/internal/metrictypes"
 	"github.com/sourcecd/monitoring/internal/models"
-	monproto "github.com/sourcecd/monitoring/proto"
 )
 
 // Number of workers pool for sending metrics.
@@ -40,6 +39,33 @@ var rtMonitorSensGauge = []string{
 	"HeapObjects", "HeapReleased", "HeapSys", "LastGC", "Lookups", "MCacheInuse",
 	"MCacheSys", "MSpanInuse", "MSpanSys", "Mallocs", "NextGC", "OtherSys", "PauseTotalNs",
 	"StackInuse", "StackSys", "Sys", "TotalAlloc", "GCCPUFraction", "NumForcedGC", "NumGC",
+}
+
+type jsonSendString struct {
+	jsonString string
+	r          *resty.Request
+	crypt      *cryptandsign.AsymmetricCryptRsa
+	keyenc     string
+	pubkeypath string
+	timeout    time.Duration
+}
+
+func (j *jsonSendString) Send(ctx context.Context, serverHost, xRealIp string) error {
+	ctx2, cancel := context.WithTimeout(ctx, j.timeout)
+	defer cancel()
+	// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
+	backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
+	if !strings.HasPrefix(serverHost, httpProto) {
+		serverHost = "http://" + serverHost
+	}
+
+	// using retry and request sign function
+	return retry.Do(ctx2, backoff, func(ctx context.Context) error {
+		if _, err := j.crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, j.keyenc), j.pubkeypath)(j.r, j.jsonString, serverHost, xRealIp); err != nil {
+			return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
+		}
+		return nil
+	})
 }
 
 type (
@@ -104,12 +130,13 @@ func updateMetrics(memstat *MemStats, sysmetrics *sysMon) {
 }
 
 // encodeJSON function for json metric encode.
-func encodeJSON(jsMetrics *metrictypes.JSONModelsMetrics) (string, error) {
+func encodeJSON(jsMetrics *metrictypes.JSONModelsMetrics, mJSON *jsonSendString) (*jsonSendString, error) {
 	jsMetrics.RLock()
 	defer jsMetrics.RUnlock()
 
 	jRes, err := json.Marshal(jsMetrics.JSONMetricsSlice)
-	return string(jRes), err
+	mJSON.jsonString = string(jRes)
+	return mJSON, err
 }
 
 // updateSysKernMetrics function for fetch cpu and memory metrics.
@@ -184,40 +211,9 @@ func addJSONModel(g *metrictypes.JSONModelsMetrics, id, mtype string, delta *int
 }
 
 // function for create parallel workers which send metrics to server.
-func worker(
-	ctx context.Context,
-	id int,
-	jobs <-chan metrictypes.MetricSender,
-	timeout time.Duration,
-	serverHost, keyenc, pubkeypath string,
-	r *resty.Request,
-	errRes chan<- error,
-	crypt cryptandsign.AsymmetricCrypt,
-	xRealIp string) {
-	var err error
+func worker(ctx context.Context, id int, jobs <-chan metrictypes.MetricSender, serverHost string, errRes chan<- error, xRealIp string) {
 	for j := range jobs {
-		ctx2, cancel := context.WithTimeout(ctx, timeout)
-
-		switch v := j.(type) {
-		case string:
-			// can't insert defer cancel() https://github.com/sourcecd/monitoring/pull/24#discussion_r1720019349
-			backoff := retry.WithMaxRetries(3, retry.NewFibonacci(1*time.Second))
-			if !strings.HasPrefix(serverHost, httpProto) {
-				serverHost = "http://" + serverHost
-			}
-
-			// using retry and request sign function
-			err = retry.Do(ctx2, backoff, func(ctx context.Context) error {
-				if _, err := crypt.AsymmetricEncryptData(cryptandsign.SignNew(send, keyenc), pubkeypath)(r, v, serverHost, xRealIp); err != nil {
-					return retry.RetryableError(fmt.Errorf("retry failed: %s", err.Error()))
-				}
-				return nil
-			})
-		case *monproto.MetricsRequest:
-			_, err = agentwithgrpc.ProtoSend(ctx, serverHost, xRealIp, v)
-		}
-
-		cancel()
+		err := j.Send(ctx, serverHost, xRealIp)
 		if shutdownCatcher(ctx, "worker shutdown") {
 			return
 		}
@@ -278,13 +274,21 @@ func Run(ctx context.Context, config ConfigArgs) {
 	client := resty.New()
 	r := client.R().SetHeader("Content-Type", "application/json")
 
+	mJSON := &jsonSendString{
+		r:          r,
+		crypt:      crypt,
+		keyenc:     config.KeyEnc,
+		pubkeypath: config.PubKeyFile,
+		timeout:    timeout,
+	}
+
 	if config.ReportInterval <= 0 || config.PollInterval <= 0 {
 		log.Fatal("wrong intervals")
 	}
 
 	// run workers
 	for w := 1; w <= workers; w++ {
-		go worker(ctx, w, jobsQueue, timeout, config.ServerAddr, config.KeyEnc, config.PubKeyFile, r, jobsErr, crypt, xRealIp)
+		go worker(ctx, w, jobsQueue, config.ServerAddr, jobsErr, xRealIp)
 	}
 
 	// poll runtime metrics
@@ -325,7 +329,7 @@ func Run(ctx context.Context, config ConfigArgs) {
 		if config.Grpc {
 			metricSend, err = agentwithgrpc.EncodeProto(jsonMetricsModel)
 		} else {
-			metricSend, err = encodeJSON(jsonMetricsModel)
+			metricSend, err = encodeJSON(jsonMetricsModel, mJSON)
 		}
 		// clear metrics structure on each iteration
 		jsonMetricsModel.Lock()

@@ -2,6 +2,7 @@
 package metrictypes
 
 import (
+	"context"
 	"sync"
 
 	"github.com/sourcecd/monitoring/internal/models"
@@ -27,4 +28,6 @@ type JSONModelsMetrics struct {
 	sync.RWMutex
 }
 
-type MetricSender interface{}
+type MetricSender interface {
+	Send(ctx context.Context, serverHost, xRealIp string) error
+}

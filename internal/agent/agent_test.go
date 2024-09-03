@@ -30,6 +30,7 @@ func testServerHTTPHandler(w http.ResponseWriter, r *http.Request) {
 func TestMetricsAgent(t *testing.T) {
 	t.Parallel()
 	metrics := &metrictypes.JSONModelsMetrics{}
+	mJSON := &jsonSendString{}
 	rtm := &MemStats{}
 	sysMetrics := &sysMon{}
 	numCount := 1
@@ -52,9 +53,9 @@ func TestMetricsAgent(t *testing.T) {
 	metrics.JSONMetricsSlice = append(metrics.JSONMetricsSlice, models.Metrics{ID: "PollCount", MType: metrictypes.CounterType, Delta: (*int64)(&testPollCount)})
 	metrics.JSONMetricsSlice = append(metrics.JSONMetricsSlice, models.Metrics{ID: "Alloc", MType: metrictypes.GaugeType, Value: &fl64})
 
-	jres, err := encodeJSON(metrics)
+	jres, err := encodeJSON(metrics, mJSON)
 	require.NoError(t, err)
-	require.JSONEq(t, jres, expMetricURLs)
+	require.JSONEq(t, jres.jsonString, expMetricURLs)
 
 	require.Equal(t, metrictypes.Counter(numCount), sysMetrics.pollCount)
 	require.NotEqual(t, metrictypes.Gauge(randVal), sysMetrics.randomValue)
@@ -126,7 +127,7 @@ func TestParseKernMetrics(t *testing.T) {
 
 func TestWorker(t *testing.T) {
 	testIP := "::1"
-	var crypt cryptandsign.AsymmetricCrypt = cryptandsign.NewAsymmetricCryptRsa()
+	crypt := cryptandsign.NewAsymmetricCryptRsa()
 	t.Parallel()
 	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(testServerHTTPHandler))
@@ -134,16 +135,19 @@ func TestWorker(t *testing.T) {
 
 	id := 1
 	ch1 := make(chan metrictypes.MetricSender, 1)
-	ch1 <- "Hello"
 	ch2 := make(chan error, 1)
 	timeout := time.Second
-	keyenc := ""
-	pubkeypath := ""
+	client := resty.New().R()
+	mJSON := &jsonSendString{
+		crypt:   crypt,
+		timeout: timeout,
+		r:       client,
+	}
+	mJSON.jsonString = "Hello"
+	ch1 <- mJSON
 	defer close(ch1)
 	defer close(ch2)
 
-	client := resty.New().R()
-
-	go worker(ctx, id, ch1, timeout, ts.URL, keyenc, pubkeypath, client, ch2, crypt, testIP)
+	go worker(ctx, id, ch1, ts.URL, ch2, testIP)
 	require.NoError(t, <-ch2)
 }
